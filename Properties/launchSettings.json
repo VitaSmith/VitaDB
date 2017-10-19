@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "VitaDB": {
+      "commandName": "Project",
+      "commandLineArgs": "--wait-for-key"
+    }
+  }
+}
