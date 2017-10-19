@@ -28,7 +28,7 @@ Yet another possibility would be cataloguing applications that can either run on
 access to the Vita memory card.
 
 All in all, we hope that this database can become the de-facto, up-to-date repository for any application that needs to
-process Vita content. If you are looking for zRIF data, please look elsewhere.
+process Vita content.
 
 ### About NoNpDrm and zRIF content
 

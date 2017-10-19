@@ -27,9 +27,9 @@ namespace VitaDB
         public string remote_sql = "https://raw.githubusercontent.com/VitaSmith/VitaDB/master/VitaDB.sql";
         public string local_cache = "PkgCache.json";
         public string remote_cache = "https://raw.githubusercontent.com/VitaSmith/VitaDB/master/PkgCache.json";
-        public string nps_apps = null;
-        public string nps_dlc = null;
-        public string nps_psm = null;
+        public static readonly string[] nps_type = new string[] { "App", "DLC", "Theme", "PSM" };
+        public static readonly int[] nps_category = { 1, 101, 201, 601 };
+        public string[] nps_url = new string[nps_type.Length];
         public int[] range = { 1, 1300 };
         public string csv_separator = ",";
         public bool csv_force_recheck = false;
@@ -103,23 +103,14 @@ namespace VitaDB
             }
             catch (Exception) { }
 
-            try
+            for (int i = 0; i < nps_type.Length; i++)
             {
-                nps_apps = config["csv:nps_apps"];
+                try
+                {
+                    nps_url[i] = config["csv:nps_" + nps_type[i].ToLower()];
+                }
+                catch (Exception) { }
             }
-            catch (Exception) { }
-
-            try
-            {
-                nps_dlc = config["csv:nps_dlc"];
-            }
-            catch (Exception) { }
-
-            try
-            {
-                nps_psm = config["csv:nps_psm"];
-            }
-            catch (Exception) { }
 
             foreach (var property in typeof(App).GetProperties())
                 csv_mapping.Add(property.Name, property.Name);

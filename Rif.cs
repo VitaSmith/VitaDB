@@ -93,7 +93,7 @@ namespace VitaDB
         /// </summary>
         /// <param name="zrif">The zRIF string</param>
         /// <returns>The 512-byte RIF byte array, or null on error</returns>
-        public static byte[] DecodeRif(string zrif)
+        public static byte[] Decode(string zrif)
         {
             byte[] input, output = new byte[512];
 
@@ -125,7 +125,6 @@ namespace VitaDB
             inflater.Inflate(output);
             if (inflater.IsNeedingDictionary)
                 inflater.SetDictionary(zrif_dict);
-            // TODO: Validate CONTENT_ID format
             return (inflater.Inflate(output, 0, 512) == 512) ? output : null;
         }
 
@@ -134,7 +133,7 @@ namespace VitaDB
         /// </summary>
         /// <param name="zrif">The zRIF string.</param>
         /// <returns>The zRIF string or null on error.</returns>
-        public static string EncodeRif(byte[] rif)
+        public static string Encode(byte[] rif)
         {
             byte[] output = new byte[128 + 2];
 
@@ -170,15 +169,15 @@ namespace VitaDB
         /// </summary>
         /// <param name="rif">The 512-byte RIF byte array.</param>
         /// <returns>The CONTENT_ID string or null on error.</returns>
-        public static string GetContentIdFromZRif(string zrif)
+        public static string GetContentId(string zrif)
         {
             if (zrif == null)
                 return null;
-            var rif = RIF.DecodeRif(zrif);
+            var rif = RIF.Decode(zrif);
             if (rif == null)
                 return null;
-            byte[] content_id = new byte[0x24];
-            Buffer.BlockCopy(rif, 0x10, content_id, 0, 0x24);
+            // PSM and regular RIFs have their CONTENT_ID at different offsets
+            var content_id = MemCpy(rif, MemCmp(rif, new byte[8]) ? 0x50 : 0x10, 0x24);
             try
             {
                 return System.Text.ASCIIEncoding.Default.GetString(content_id);

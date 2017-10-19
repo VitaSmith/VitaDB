@@ -35,9 +35,6 @@ namespace VitaDB
         private static int verbosity = 0;
         private static bool wait_for_key = false;
         private static bool purge_pkgcache = false;
-        // For CSV import/export
-        private static readonly string[] csv_type = { "App", "DLC", "PSM" };
-        private static readonly int[] csv_cat = { 1, 101, 601 };
 
         /// <summary>
         /// Update the Database for Apps and DLC by querying Bing, Chihiro and the PSN update servers.
@@ -128,9 +125,9 @@ namespace VitaDB
             string tmp_file = null;
             if (String.IsNullOrEmpty(uri))
                 return;
-            if (type < 0 || type >= 3)
+            if (type < 0 || type >= Settings.nps_type.Length)
                 return;
-            Console.WriteLine($"Importing {csv_type[type]} CSV data from '{uri}':");
+            Console.WriteLine($"Importing {Settings.nps_type[type]} CSV data from '{uri}':");
             if (uri.StartsWith("http:") || uri.StartsWith("https:"))
             {
                 tmp_file = Path.GetTempFileName();
@@ -219,7 +216,7 @@ namespace VitaDB
                     // Try to read the CONTENT_ID from zRIF
                     if (!String.IsNullOrEmpty(app.ZRIF))
                     {
-                        string content_id = RIF.GetContentIdFromZRif(app.ZRIF);
+                        string content_id = RIF.GetContentId(app.ZRIF);
                         if (!App.ValidateContentID(content_id))
                             Console.Error.WriteLine($"[WARNING] CONTENT_ID from {app.ZRIF} is invalid");
                         else if (!String.IsNullOrEmpty(app.CONTENT_ID) && (app.CONTENT_ID != content_id))
@@ -265,7 +262,7 @@ namespace VitaDB
                         app.CATEGORY = 101;
                     else if (app.TITLE_ID.ToLower().Contains("theme"))
                         app.CATEGORY = 201;
-                    app.CATEGORY = app.CATEGORY ?? csv_cat[type];
+                    app.CATEGORY = app.CATEGORY ?? Settings.nps_category[type];
 
                     // Now we can validate TITLE_ID
                     if (app.TITLE_ID.Length > 9)
@@ -278,10 +275,7 @@ namespace VitaDB
 
                     // Don't bother with Add-ons if we didn't get a CONTENT_ID
                     if ((app.CATEGORY >= 100) && String.IsNullOrEmpty(app.CONTENT_ID))
-                    {
-                        Console.Error.WriteLine($"[WARNING] Unable to deduce Add-on CONTENT_ID");
                         continue;
-                    }
 
                     if (String.IsNullOrEmpty(app.CONTENT_ID))
                     {
@@ -297,7 +291,6 @@ namespace VitaDB
                         }
                         else
                         {
-                            Console.Error.WriteLine($"[WARNING] Unable to deduce Add-on CONTENT_ID");
                             continue;
                         }
                     }
@@ -355,7 +348,7 @@ namespace VitaDB
         {
             if (type < 0 || type >= 3)
                 return;
-            Console.Write($"Dumping all {csv_type[type]} entries with PKG URLs or zRIFs to '{file_path}'... ");
+            Console.Write($"Dumping all {Settings.nps_type[type]} entries with PKG URLs or zRIFs to '{file_path}'... ");
             using (var writer = File.CreateText(file_path))
             using (var db = new Database())
             {
@@ -363,7 +356,7 @@ namespace VitaDB
                 writer.WriteLine("TITLE_ID,REGION,NAME,PKG_URL,ZRIF");
                 foreach (var app in db.Apps.Where(
                     x => ((x.PKG_ID != null) || !String.IsNullOrEmpty(x.ZRIF)) &&
-                          (x.CATEGORY >= csv_cat[type]) && (x.CATEGORY < csv_cat[type] + 99))
+                          (x.CATEGORY >= Settings.nps_category[type]) && (x.CATEGORY < Settings.nps_category[type] + 99))
                 )
                 {
                     if (cancel_requested)
@@ -408,7 +401,7 @@ namespace VitaDB
                     Console.SetCursorPosition(0, Console.CursorTop);
                     Console.Write($"[{line_nr.ToString(format)}/{lines.Count()}] ");
                     var zrif = line.Trim();
-                    var content_id = RIF.GetContentIdFromZRif(zrif);
+                    var content_id = RIF.GetContentId(zrif);
                     if (!App.ValidateContentID(content_id))
                     {
                         Console.Error.WriteLine($"[WARNING] Line {line_nr}: Decoded '{content_id}' is not a valid CONTENT_ID");
@@ -891,7 +884,6 @@ namespace VitaDB
                 { "version", "display version and exit", x => mode = "version" },
                 { "v", "increase verbosity", x => verbosity++ },
                 { "z|zrif", "import/export zRIFs", x => mode = "zrif" },
-                { "t|test", "test mode", x => mode = "test" },
                 { "w|wait-for-key", "wait for keypress before exiting", x => wait_for_key = true },
                 { "h|help", "show this message and exit", x => mode = "help" },
             };
@@ -1002,19 +994,15 @@ namespace VitaDB
                     Maintenance();
                     break;
                 case "nps":
-                    ImportCSV(Settings.Instance.nps_apps, 0);
-                    if (!cancel_requested)
-                        ImportCSV(Settings.Instance.nps_dlc, 1);
-                    if (!cancel_requested)
-                        ImportCSV(Settings.Instance.nps_psm, 2);
+                    for (int i = 0; i < Settings.nps_type.Length; i++)
+                    {
+                        if (cancel_requested)
+                            break;
+                        ImportCSV(Settings.Instance.nps_url[i], i);
+                    }
                     break;
                 case "refresh":
                     RefreshDBFromPSN();
-                    break;
-                case "test":
-                    var rif_name = RIF.GetRifName(1, 0x123456789abcdef);
-                    Console.WriteLine($"RIF Name = {rif_name}");
-                    Console.WriteLine($"AID = {RIF.GetAidFromRifName(rif_name):x8}");
                     break;
                 case "url":
                     if (String.IsNullOrEmpty(input))
