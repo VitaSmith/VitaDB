@@ -427,5 +427,27 @@ namespace VitaDB
             }
             return null;
         }
+
+        /// <summary>
+        /// Fetches all Vita titles for a specific region.
+        /// </summary>
+        /// <param name="lang">The language/region to perform the lookup for.
+        /// <returns>A Chihiro.Data JSON object.</returns>
+        public static Chihiro.Data GetAllTitles(string lang)
+        {
+            string chihiro_lang = lang.Substring(3, 2).ToUpper() + "/" + lang.Substring(0, 2);
+            var url = "https://store.playstation.com/store/api/chihiro/00_09_000/container/" +
+                chihiro_lang + "/999/STORE-MSF75508-PLATFORMPSVITA?sort=name&direction=asc&size=4000";
+            using (WebClient wc = new WebClient())
+            {
+                try
+                {
+                    var json = wc.DownloadString(url);
+                    return String.IsNullOrEmpty(json) ? null : JsonConvert.DeserializeObject<Chihiro.Data>(json);
+                }
+                catch (System.Net.WebException) { }
+            }
+            return null;
+        }
     }
 }

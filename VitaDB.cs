@@ -37,6 +37,40 @@ namespace VitaDB
         private static bool purge_pkgcache = false;
 
         /// <summary>
+        /// Gets all Vita titles for a specific region and update the DB accordingly.
+        /// </summary>
+        /// <param name="lang">A language identifier, in the form "en-gb" or such.</param>
+        static void RefreshDBFromRoot(string lang)
+        {
+            Console.WriteLine($"*** Looking up ALL Vita titles for {lang} region ***");
+            var data = Chihiro.GetAllTitles(lang);
+            if (data == null)
+                return;
+
+            using (var db = new Database())
+            {
+                foreach (var link in Nullable(data.links))
+                {
+                    if (cancel_requested)
+                        break;
+                    if (link.id[7] != 'P' && link.id[7] != 'V')
+                        continue;
+                    var app = db.Apps.Find(link.id);
+                    if (app == null)
+                    {
+                        app = new App
+                        {
+                            TITLE_ID = link.id.Substring(7, 9),
+                            CONTENT_ID = link.id,
+                        };
+                    }
+                    Console.WriteLine($"{link.id}");
+                    app.UpdateFromChihiro(db, lang);
+                }
+            }
+        }
+
+        /// <summary>
         /// Update the Database for Apps and DLC by querying Bing, Chihiro and the PSN update servers.
         /// Uses the settings from the .ini file to search content for TITLE_ID's.
         /// </summary>
@@ -343,30 +377,31 @@ namespace VitaDB
         /// Save the database to a CSV spreadsheet.
         /// </summary>
         /// <param name="file_path">The path of the CSV file to write.</param>
-        /// <param name="is_dlc">(Optional) Set to true to export DLC, Themes, etc.</param>
+        /// <param name="type">(Optional) The type of content to export.</param>
         static void ExportCSV(string file_path, int type = 0)
         {
-            if (type < 0 || type >= 3)
+            if (type < 0 || type >= Settings.nps_type.Length)
                 return;
-            Console.Write($"Dumping all {Settings.nps_type[type]} entries with PKG URLs or zRIFs to '{file_path}'... ");
+            Console.Write($"Dumping all {Settings.nps_type[type]} entries to '{file_path}'... ");
             using (var writer = File.CreateText(file_path))
             using (var db = new Database())
             {
                 var csv = new CsvWriter(writer);
-                writer.WriteLine("TITLE_ID,REGION,NAME,PKG_URL,ZRIF");
+                csv.Configuration.Encoding = System.Text.Encoding.UTF8;
+                writer.WriteLine("TITLE_ID,REGION,NAME,PKG_URL,CONTENT_ID");
                 foreach (var app in db.Apps.Where(
-                    x => ((x.PKG_ID != null) || !String.IsNullOrEmpty(x.ZRIF)) &&
-                          (x.CATEGORY >= Settings.nps_category[type]) && (x.CATEGORY < Settings.nps_category[type] + 99))
+                    x => (x.CATEGORY >= Settings.nps_category[type]) && (x.CATEGORY < Settings.nps_category[type] + 99))
                 )
                 {
                     if (cancel_requested)
                         break;
-                    bool free_app = ((app.FLAGS & db.Flag["FREE_APP"]) != 0);
+                    //bool free_app = ((app.FLAGS & db.Flag["FREE_APP"]) != 0);
                     csv.WriteField(app.TITLE_ID);
                     csv.WriteField(Settings.Instance.GetRegionName(app.TITLE_ID.Substring(0, 4)));
                     csv.WriteField(app.NAME);
                     csv.WriteField((app.PKG_ID == null) ? "" : db.Pkgs.Find(app.PKG_ID).URL);
-                    csv.WriteField(free_app ? "NOT REQUIRED" : app.ZRIF);
+                    csv.WriteField(app.CONTENT_ID);
+//                    csv.WriteField(free_app ? "NOT REQUIRED" : app.ZRIF);
                     csv.NextRecord();
                 }
             }
@@ -883,6 +918,7 @@ namespace VitaDB
                 { "u|url=", "update DB from PSN Store/Pkg URL(s)", x => {mode = "url"; input = x; } },
                 { "version", "display version and exit", x => mode = "version" },
                 { "v", "increase verbosity", x => verbosity++ },
+                { "t|test", "testing", x => mode = "test" },
                 { "z|zrif", "import/export zRIFs", x => mode = "zrif" },
                 { "w|wait-for-key", "wait for keypress before exiting", x => wait_for_key = true },
                 { "h|help", "show this message and exit", x => mode = "help" },
@@ -964,6 +1000,11 @@ namespace VitaDB
                     if (wait_for_key)
                         WaitForKey();
                     return;
+                case "test":
+                    string[] langs = { "en-gb", "en-pl", "fr-fr", "de-de", "it-it", "es-es", "ru-ru" };
+                    foreach (var lang in langs)
+                        RefreshDBFromRoot(lang);
+                    break;
                 case "csv":
                     string uri = input ?? output;
                     if (String.IsNullOrEmpty(uri))
