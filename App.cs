@@ -77,6 +77,16 @@ namespace VitaDB
                 var org_app = db.Apps
                     .AsNoTracking()
                     .FirstOrDefault(x => x.CONTENT_ID == this.CONTENT_ID);
+                if (org_app == null)
+                {
+                    // Changes need to be applied
+                    db.SaveChanges();
+                    org_app = db.Apps
+                        .AsNoTracking()
+                        .FirstOrDefault(x => x.CONTENT_ID == this.CONTENT_ID);
+                    if (org_app == null)
+                        throw new ApplicationException("Tracked App found, but database changes were not applied.");
+                }
                 var entry = db.Entry(this);
 
                 foreach (var attr in typeof(App).GetProperties())

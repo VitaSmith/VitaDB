@@ -36,20 +36,18 @@ namespace VitaDB
         private static bool wait_for_key = false;
         private static bool purge_pkgcache = false;
 
-        /// <summary>
-        /// Gets all Vita titles for a specific region and update the DB accordingly.
-        /// </summary>
-        /// <param name="lang">A language identifier, in the form "en-gb" or such.</param>
-        static void RefreshDBFromRoot(string lang)
-        {
-            Console.WriteLine($"*** Looking up ALL Vita titles for {lang} region ***");
-            var data = Chihiro.GetAllTitles(lang);
-            if (data == null)
-                return;
 
+        /// <summary>
+        /// Convenience calls to add entries from a Chihiro link list.
+        /// </summary>
+        /// <param name="links">A List of Chihiro links.</param>
+        /// <param name="lang">(Optiona) The language to use when querying Chihiro.</param>
+        /// <param name="reparse">(Optional) Force a reparse of existing DB entries.</param>
+        static void AddLinks(List<Chihiro.Link> links, string lang = null, bool reparse = false)
+        {
             using (var db = new Database())
             {
-                foreach (var link in Nullable(data.links))
+                foreach (var link in links)
                 {
                     if (cancel_requested)
                         break;
@@ -58,20 +56,68 @@ namespace VitaDB
                     var app = db.Apps.Find(link.id);
                     if (app == null)
                     {
+                        Console.WriteLine($"{link.id}");
                         app = new App
                         {
                             TITLE_ID = link.id.Substring(7, 9),
                             CONTENT_ID = link.id,
                         };
+                        app.UpdateFromChihiro(db, lang);
                     }
-                    Console.WriteLine($"{link.id}");
-                    app.UpdateFromChihiro(db, lang);
+                    else if (reparse)
+                        app.UpdateFromChihiro(db, lang);
                 }
+                db.SaveChanges();
             }
         }
 
         /// <summary>
-        /// Update the Database for Apps and DLC by querying Bing, Chihiro and the PSN update servers.
+        /// Gets all Vita titles by performing a search for all regions against Chihiro.
+        /// </summary>
+        /// <param name="reparse">(Optional) Force a reparse of existing DB entries.</param>
+        static void RefreshDBFromChihiro(bool reparse = false)
+        {
+            string[] regions = {
+                "en-us", "en-ca", "es-mx", "pt-br", "es-ar",
+                "en-ie", "en-gb", "en-pl", "en-cz", "en-dk", "en-fi", "en-no",
+                "en-se","en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
+                "fr-fr", "de-de", "it-it", "es-es", "nl-nl", "pt-pt", "en-il",
+                "de-at", "en-au", "ru-ua", "ru-ru", "en-hk", "zh-hk", "ja-jp" };
+
+            foreach (var region in regions)
+            {
+                if (cancel_requested)
+                    break;
+
+                var data = Chihiro.GetAllTitles(region);
+                if ((data == null) || (Nullable(data.links).Count() == 0))
+                {
+                    Console.Error.WriteLine($"[WARNING] No titles found for region '{region}'");
+                    continue;
+                }
+                Console.WriteLine($"[Checking {data.links.Count()} titles in '{region}']");
+                AddLinks(data.links, region, reparse);
+            }
+
+            // Japan is weird...
+            string[] groups = { "A", "KA", "SA", "TA", "NA", "HA", "MA", "YA", "RA", "WA" };
+            foreach (var group in groups)
+            {
+                if (cancel_requested)
+                    break;
+                var data = Chihiro.GetAllTitles("ja-jp", "PN.CH.JP-PN.CH.MIXED.JP-FROM" + group);
+                if ((data == null) || (Nullable(data.links).Count() == 0))
+                {
+                    Console.Error.WriteLine($"[WARNING] No titles found for JP/{group}");
+                    continue;
+                }
+                Console.WriteLine($"[Checking {data.links.Count()} titles for JP/{group}]");
+                AddLinks(data.links, "ja-jp", reparse);
+            }
+        }
+
+        /// <summary>
+        /// Update the Database for Apps and DLC by querying Bing and PSN.
         /// Uses the settings from the .ini file to search content for TITLE_ID's.
         /// </summary>
         static void RefreshDBFromPSN(bool search = false)
@@ -912,7 +958,8 @@ namespace VitaDB
                 { "o|output=", "name of the output file", x => output = x },
                 { "c|csv", "import/export CSV", x => mode = "csv" },
                 { "n|nps", "import data from NoPayStation online spreadsheet", x => mode = "nps" },
-                { "r|refresh", "refresh db from PSN", x => mode = "refresh" },
+                { "chihiro", "refresh db from Chihiro", x => mode = "chihiro" },
+                { "psn", "refresh db from PSN", x => mode = "psn" },
                 { "d|dump", "dump database to SQL (requires sqlite3.exe)", x => mode = "dump" },
                 { "p|purge", "purge/create a new PKG cache dictionary", x => purge_pkgcache = true },
                 { "u|url=", "update DB from PSN Store/Pkg URL(s)", x => {mode = "url"; input = x; } },
@@ -1000,12 +1047,7 @@ namespace VitaDB
                     if (wait_for_key)
                         WaitForKey();
                     return;
-                case "test":
-                    string[] langs = { "en-gb", "en-pl", "fr-fr", "de-de", "it-it", "es-es", "ru-ru" };
-                    foreach (var lang in langs)
-                        RefreshDBFromRoot(lang);
-                    break;
-                case "csv":
+               case "csv":
                     string uri = input ?? output;
                     if (String.IsNullOrEmpty(uri))
                     {
@@ -1042,8 +1084,11 @@ namespace VitaDB
                         ImportCSV(Settings.Instance.nps_url[i], i);
                     }
                     break;
-                case "refresh":
+                case "psn":
                     RefreshDBFromPSN();
+                    break;
+                case "chihiro":
+                    RefreshDBFromChihiro();
                     break;
                 case "url":
                     if (String.IsNullOrEmpty(input))

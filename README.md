@@ -52,12 +52,14 @@ Options:
   -o, --output=VALUE         name of the output file
   -c, --csv                  import/export CSV
   -n, --nps                  import data from NoPayStation online spreadsheet
-  -r, --refresh              refresh db from PSN
+      --chihiro              refresh db from Chihiro
+      --psn                  refresh db from PSN
   -d, --dump                 dump database to SQL (requires sqlite3.exe)
   -p, --purge                purge/create a new PKG cache dictionary
   -u, --url=VALUE            update DB from PSN Store/Pkg URL(s)
       --version              display version and exit
   -v                         increase verbosity
+  -t, --test                 testing
   -z, --zrif                 import/export zRIFs
   -w, --wait-for-key         wait for keypress before exiting
   -h, --help                 show this message and exit
@@ -66,11 +68,12 @@ Options:
 Examples:
 
 ```
+dotnet VitaDB.dll -n
 dotnet VitaDB.dll -u http://zeus.dl.playstation.net/cdn/EP9000/PCSF00001_00/ZGkyvUJatRjaXSqnOaeeFYBJaLXASkjBNWaelzTUYxjuxAtLGYyPvStdjDpYsUKK.pkg
 dotnet VitaDB.dll -u https://store.playstation.com/#!/en-gb/games/uncharted-golden-abyss-(eng-pol-por-rus-sca-spa)/cid=EP9000-PCSF00001_00-0000000000000000
 dotnet VitaDB.dll -u url_list.txt
 dotnet VitaDB.dll -c -i nps_organized.csv
-dotnet VitaDB.dll -n
+dotnet VitaDB.dll --chihiro
 dotnet VitaDB.dll -m
 ```
 
