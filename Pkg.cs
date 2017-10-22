@@ -319,6 +319,7 @@ namespace VitaDB
             HttpWebRequest request;
             request = WebRequest.Create(url) as HttpWebRequest;
             request.AddRange((long)start, (long)start + size - 1);
+            request.ReadWriteTimeout = 30000;
 
             try
             {
