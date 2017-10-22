@@ -77,12 +77,14 @@ namespace VitaDB
         /// <param name="reparse">(Optional) Force a reparse of existing DB entries.</param>
         static void RefreshDBFromChihiro(bool reparse = false)
         {
-            string[] regions = {
-                "en-us", "en-ca", "es-mx", "pt-br", "es-ar",
-                "en-ie", "en-gb", "en-pl", "en-cz", "en-dk", "en-fi", "en-no",
-                "en-se","en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
-                "fr-fr", "de-de", "it-it", "es-es", "nl-nl", "pt-pt", "en-il",
-                "de-at", "en-au", "ru-ua", "ru-ru", "en-hk", "zh-hk", "ja-jp" };
+            string[] regions =
+                {
+                    "en-us", "en-ca", "es-mx", "pt-br", "es-ar",
+                    "en-gb", "en-ie", "en-pl", "en-se", "en-no", "en-fi", "en-dk",
+                    "en-cz", "en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
+                    "en-il", "en-au", "fr-fr", "it-it", "es-es", "de-de", "nl-nl",
+                    "pt-pt", "de-at", "ru-ru", "en-hk", "zh-hk"
+                };
 
             foreach (var region in regions)
             {
@@ -113,6 +115,52 @@ namespace VitaDB
                 }
                 Console.WriteLine($"[Checking {data.links.Count()} titles for JP/{group}]");
                 AddLinks(data.links, "ja-jp", reparse);
+            }
+        }
+
+        /// <summary>
+        /// Internal check for titles that exist in one region but not another.
+        /// </summary>
+        /// <param name="regions">An array of region, the first element of the array being the prime one.</param>
+        static void CheckRegion(string[] regions)
+        {
+            Console.WriteLine($"Retrieving content from '{regions[0]}'...");
+            var main_data = Chihiro.GetAllTitles(regions[0]);
+            var main_content_ids = main_data.links.Where(x => x.id[7] == 'P').Select(x => x.id);
+            Dictionary<string, string> dict = new Dictionary<string, string>();
+            for (int i = 1; i < regions.Length; i++)
+            {
+                Console.WriteLine($"Checking for content that exists in '{regions[i]}' and not in previous region(s)...");
+                var data = Chihiro.GetAllTitles(regions[i]);
+                var content_ids = data.links.Where(x => x.id[7] == 'P').Select(x => x.id);
+                var result = content_ids.Where(x => !main_content_ids.Any(y => y == x));
+                foreach (var content_id in result)
+                {
+                    if (cancel_requested)
+                        return;
+                    if (!dict.Keys.Contains(content_id))
+                    {
+                        dict[content_id] = regions[i];
+                        Console.WriteLine($"* {content_id}");
+                    }
+                }
+            }
+            using (var db = new Database())
+            {
+                Console.WriteLine("Updating DB...");
+                foreach (var content_id in dict.Keys)
+                {
+                    if (cancel_requested)
+                        break;
+                    var app = db.Apps.Find(content_id);
+                    if (app == null)
+                    {
+                        Console.Error.WriteLine($"[WARNING] Ignoring non existing app '{content_id}'");
+                        continue;
+                    }
+                    app.UpdateFromChihiro(db, dict[content_id], true);
+                }
+                db.SaveChanges();
             }
         }
 
@@ -184,7 +232,7 @@ namespace VitaDB
 
                         // Query Chihiro to fill our content
                         foreach (var app in apps)
-                            app.UpdateFromChihiro(db, lang);
+                            app.UpdateFromChihiro(db, app.COMMENTS ?? lang);
 
                         // Also run a check for the TITLE_ID against the patch servers
                         if ((apps.Count() > 0) || search)
@@ -353,15 +401,11 @@ namespace VitaDB
                         continue;
                     }
 
-                    // Don't bother with Add-ons if we didn't get a CONTENT_ID
-                    if ((app.CATEGORY >= 100) && String.IsNullOrEmpty(app.CONTENT_ID))
-                        continue;
-
                     if (String.IsNullOrEmpty(app.CONTENT_ID))
                     {
-                        // Select most likely or create dummy
                         if (app.CATEGORY < 100)
                         {
+                            // Select most likely or create dummy
                             var existing_app = db.Apps
                                 .Where(x => (x.TITLE_ID == app.TITLE_ID) && ((x.CATEGORY ?? 0) < 100))
                                 .FirstOrDefault();
@@ -371,13 +415,24 @@ namespace VitaDB
                         }
                         else
                         {
+                            // Don't bother with Add-ons if we didn't get a CONTENT_ID
                             continue;
                         }
                     }
+
+                    // Since we have CONTENT_ID, try to locate the existing entry
+                    var db_app = db.Apps.Find(app.CONTENT_ID);
+                    if (db_app != null)
+                        app.PARENT_ID = db_app.PARENT_ID;
+
                     if (!app.CONTENT_ID.Contains(app.TITLE_ID))
                     {
-                        Console.Error.WriteLine($"[WARNING] TITLE_ID ({app.TITLE_ID}) and CONTENT_ID ({app.CONTENT_ID}) do not match");
-                        continue;
+                        if ((app.CATEGORY < 100) || (!app.PARENT_ID.Contains(app.TITLE_ID)))
+                        {
+                            Console.Error.WriteLine($"[WARNING] TITLE_ID ({app.TITLE_ID}) and CONTENT_ID ({app.CONTENT_ID}) do not match");
+                            continue;
+                        }
+                        app.TITLE_ID = app.CONTENT_ID.Substring(7, 9);
                     }
 
                     if (app.CATEGORY >= 100)
@@ -385,12 +440,11 @@ namespace VitaDB
                         var likely_parent = db.Apps
                             .Where(x => (x.TITLE_ID == app.TITLE_ID) && ((x.CATEGORY ?? 0) < 100))
                             .FirstOrDefault();
-                        if (likely_parent != null)
+                        if ((likely_parent != null) && String.IsNullOrEmpty(app.PARENT_ID))
                             app.PARENT_ID = likely_parent.CONTENT_ID;
                     }
 
                     // Insert or update record
-                    var db_app = db.Apps.Find(app.CONTENT_ID);
                     if (verbosity > 0)
                         Console.WriteLine($"{app.TITLE_ID}:" +
                             $" {app.CONTENT_ID} {((db_app == null) ? "(I)" : "(U)")}");
@@ -545,6 +599,7 @@ namespace VitaDB
 
                     string old_content_id = null;
                     Console.WriteLine($"{app.CONTENT_ID}: {app.PARENT_ID}");
+                    // TODO: Make this work with multiple PARENT_IDs
                     var json = Chihiro.GetData(app.PARENT_ID);
                     if ((json == null) || (json.default_sku == null) || (json.default_sku.entitlements == null))
                     {
@@ -571,7 +626,7 @@ namespace VitaDB
                     }
                     app.NAME = json.name;
                     app.CATEGORY = db.Category[json.top_category];
-                    app.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY), nameof(App.PARENT_ID));
+                    app.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
                     app.Upsert(db);
                     if (old_content_id != null)
                     {
@@ -829,17 +884,19 @@ namespace VitaDB
                 List<string> list = new List<string>();
                 var parent_ids = db.Apps
                     .Where(x => !String.IsNullOrEmpty(x.PARENT_ID))
-                    .Select(x => x.PARENT_ID)
-                    .ToHashSet();
-                foreach (var parent_id in parent_ids)
+                    .Select(x => x.PARENT_ID);
+                foreach (var multi_parent_id in parent_ids)
                 {
-                    if (cancel_requested)
-                        return;
-                    // Ignore bundles
-                    if (parent_id[7] != 'P')
-                        continue;
-                    if (!db.Apps.Any(x => x.CONTENT_ID == parent_id))
-                        list.Add(parent_id);
+                    foreach (var parent_id in multi_parent_id.Split(' '))
+                    {
+                        if (cancel_requested)
+                            return;
+                        // Ignore bundles
+                        if (parent_id[7] != 'P')
+                            continue;
+                        if (!db.Apps.Any(x => x.CONTENT_ID == parent_id))
+                            list.Add(parent_id);
+                    }
                 }
                 if (list.Count() == 0)
                 {
@@ -859,13 +916,16 @@ namespace VitaDB
                 HashSet<string> list = new HashSet<string>();
                 foreach (var app_with_parent in db.Apps.Where(x => x.PARENT_ID != null))
                 {
-                    if (cancel_requested)
-                        return;
-                    var app = db.Apps
-                        .Where(x => (x.CONTENT_ID == app_with_parent.PARENT_ID) && (x.CATEGORY > 100))
-                        .FirstOrDefault();
-                    if (app != null)
-                        list.Add(app_with_parent.PARENT_ID);
+                    foreach (var parent_id in app_with_parent.PARENT_ID.Split(' '))
+                    {
+                        if (cancel_requested)
+                            return;
+                        var app = db.Apps
+                            .Where(x => (x.CONTENT_ID == parent_id) && (x.CATEGORY > 100))
+                            .FirstOrDefault();
+                        if (app != null)
+                            list.Add(parent_id);
+                    }
                 }
 
                 var ordered_list = list.OrderBy(x => x.Substring(7, 9));
@@ -960,12 +1020,12 @@ namespace VitaDB
                 { "n|nps", "import data from NoPayStation online spreadsheet", x => mode = "nps" },
                 { "chihiro", "refresh db from Chihiro", x => mode = "chihiro" },
                 { "psn", "refresh db from PSN", x => mode = "psn" },
+                { "region", "internal region check", x=> mode = "region" },
                 { "d|dump", "dump database to SQL (requires sqlite3.exe)", x => mode = "dump" },
                 { "p|purge", "purge/create a new PKG cache dictionary", x => purge_pkgcache = true },
                 { "u|url=", "update DB from PSN Store/Pkg URL(s)", x => {mode = "url"; input = x; } },
                 { "version", "display version and exit", x => mode = "version" },
                 { "v", "increase verbosity", x => verbosity++ },
-                { "t|test", "testing", x => mode = "test" },
                 { "z|zrif", "import/export zRIFs", x => mode = "zrif" },
                 { "w|wait-for-key", "wait for keypress before exiting", x => wait_for_key = true },
                 { "h|help", "show this message and exit", x => mode = "help" },
@@ -1111,6 +1171,19 @@ namespace VitaDB
                         ImportZRif(input);
                     else
                         ExportZRif(output);
+                    break;
+                case "region":
+                    string[] eur_regions =
+                    {
+                        "en-gb", "en-ie", "en-pl", "en-se", "en-no", "en-fi", "en-dk", "en-cz",
+                        "en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr", "en-il", "en-au",
+                        "fr-fr", "it-it", "es-es", "de-de", "nl-nl", "pt-pt", "de-at", "ru-ru"
+                    };
+                    string[] usa_regions = { "en-us", "en-ca", "es-mx", "pt-br", "es-ar" };
+                    string[] asn_regions = { "en-hk", "zh-hk" };
+                    CheckRegion(usa_regions);
+                    CheckRegion(eur_regions);
+                    CheckRegion(asn_regions);
                     break;
                 default:
                     Console.Error.WriteLine("Unsupported mode.");

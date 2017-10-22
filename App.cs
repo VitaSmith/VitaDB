@@ -158,7 +158,8 @@ namespace VitaDB
         /// <param name="db">The database context.</param>
         /// <param name="app">The application entry to update or create.</param>
         /// <param name="lang">(Optional) The language settings to use when querying Chihiro.</param>
-        public void UpdateFromChihiro(Database db, string lang = null)
+        /// <param name="add_lang">(Optional) If true, also add lang to the COMMENTS field.</param>
+        public void UpdateFromChihiro(Database db, string lang = null, bool add_lang = false)
         {
             var data = Chihiro.GetData(CONTENT_ID, lang);
             if (data == null)
@@ -172,13 +173,18 @@ namespace VitaDB
                 CATEGORY = db.Category[data.top_category];
                 // Data we get from Chihiro is final
                 SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
+                if ((lang != null) && (add_lang))
+                {
+                    COMMENTS = lang;
+                    SetReadOnly(db, nameof(App.COMMENTS));
+                }
                 Upsert(db);
 
                 // Update addons
                 foreach (var link in Nullable(data.links))
                 {
                     // May get mixed DLC content
-                    if (!link.id.Contains(TITLE_ID))
+                    if ((link.id[7] != 'P') && (link.id[7] != 'V'))
                         continue;
                     Console.WriteLine($"* {link.id}: {link.top_category}");
                     var dlc = db.Apps.Find(link.id);
@@ -187,7 +193,7 @@ namespace VitaDB
                         dlc = new App
                         {
                             NAME = link.name,
-                            TITLE_ID = TITLE_ID,
+                            TITLE_ID = link.id.Substring(7, 9),
                             CONTENT_ID = link.id,
                             PARENT_ID = CONTENT_ID,
                             CATEGORY = db.Category[link.top_category],
@@ -196,13 +202,19 @@ namespace VitaDB
                     else
                     {
                         dlc.NAME = link.name;
-                        dlc.TITLE_ID = TITLE_ID;
-                        if (dlc.PARENT_ID != CONTENT_ID)
-                            Console.WriteLine($"[WARNING] PARENT_ID {dlc.PARENT_ID} -> {CONTENT_ID}");
-                        dlc.PARENT_ID = CONTENT_ID;
+                        dlc.TITLE_ID = link.id.Substring(7, 9);
+                        if (dlc.PARENT_ID == null)
+                            dlc.PARENT_ID = CONTENT_ID;
+                        else if (!dlc.PARENT_ID.Contains(CONTENT_ID))
+                            dlc.PARENT_ID += " " + CONTENT_ID;
                         dlc.CATEGORY = db.Category[link.top_category];
                     }
-                    dlc.SetReadOnly(db, nameof(App.NAME), nameof(App.PARENT_ID), nameof(App.CATEGORY));
+                    dlc.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
+                    if ((lang != null) && (add_lang))
+                    {
+                        dlc.COMMENTS = lang;
+                        dlc.SetReadOnly(db, nameof(App.COMMENTS));
+                    }
                     dlc.Upsert(db);
                 }
             }
@@ -237,7 +249,7 @@ namespace VitaDB
                                 app.PARENT_ID = CONTENT_ID;
                             app.CATEGORY = CATEGORY;
                         }
-                        app.SetReadOnly(db, nameof(App.NAME), nameof(App.PARENT_ID), nameof(App.CATEGORY));
+                        app.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
                         app.Upsert(db);
                     }
                 }

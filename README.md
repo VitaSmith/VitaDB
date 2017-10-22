@@ -59,7 +59,6 @@ Options:
   -u, --url=VALUE            update DB from PSN Store/Pkg URL(s)
       --version              display version and exit
   -v                         increase verbosity
-  -t, --test                 testing
   -z, --zrif                 import/export zRIFs
   -w, --wait-for-key         wait for keypress before exiting
   -h, --help                 show this message and exit
