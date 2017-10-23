@@ -50,10 +50,11 @@ Options:
   -m, --maintenance          perform database maintenance
   -i, --input=VALUE          name of the input file or URL
   -o, --output=VALUE         name of the output file
-  -c, --csv                  import/export CSV
+  -c, --csv                  import/export CSV (Content type is deduced from filename)
   -n, --nps                  import data from NoPayStation online spreadsheet
       --chihiro              refresh db from Chihiro
       --psn                  refresh db from PSN
+      --region               internal region check
   -d, --dump                 dump database to SQL (requires sqlite3.exe)
   -p, --purge                purge/create a new PKG cache dictionary
   -u, --url=VALUE            update DB from PSN Store/Pkg URL(s)
@@ -68,11 +69,10 @@ Examples:
 
 ```
 dotnet VitaDB.dll -n
-dotnet VitaDB.dll -u http://zeus.dl.playstation.net/cdn/EP9000/PCSF00001_00/ZGkyvUJatRjaXSqnOaeeFYBJaLXASkjBNWaelzTUYxjuxAtLGYyPvStdjDpYsUKK.pkg
-dotnet VitaDB.dll -u https://store.playstation.com/#!/en-gb/games/uncharted-golden-abyss-(eng-pol-por-rus-sca-spa)/cid=EP9000-PCSF00001_00-0000000000000000
+dotnet VitaDB.dll -c -o apps.csv
+dotnet VitaDB.dll -c -o dlc.csv
 dotnet VitaDB.dll -u url_list.txt
-dotnet VitaDB.dll -c -i nps_organized.csv
-dotnet VitaDB.dll --chihiro
+dotnet VitaDB.dll --psn
 dotnet VitaDB.dll -m
 ```
 

@@ -529,7 +529,7 @@ namespace VitaDB
                         break;
                     //bool free_app = ((app.FLAGS & db.Flag["FREE_APP"]) != 0);
                     csv.WriteField(app.TITLE_ID);
-                    csv.WriteField(Settings.Instance.GetRegionName(app.TITLE_ID.Substring(0, 4)));
+                    csv.WriteField(Settings.Instance.GetRegionName(app.CONTENT_ID));
                     csv.WriteField(app.NAME);
                     csv.WriteField((app.PKG_ID == null) ? "" : db.Pkgs.Find(app.PKG_ID).URL);
                     csv.WriteField(app.CONTENT_ID);
@@ -1051,7 +1051,7 @@ namespace VitaDB
                 { "m|maintenance", "perform database maintenance", x => mode = "maintenance" },
                 { "i|input=", "name of the input file or URL", x => input = x },
                 { "o|output=", "name of the output file", x => output = x },
-                { "c|csv", "import/export CSV", x => mode = "csv" },
+                { "c|csv", "import/export CSV (Content type is deduced from filename)", x => mode = "csv" },
                 { "n|nps", "import data from NoPayStation online spreadsheet", x => mode = "nps" },
                 { "chihiro", "refresh db from Chihiro", x => mode = "chihiro" },
                 { "psn", "refresh db from PSN", x => mode = "psn" },
@@ -1149,11 +1149,12 @@ namespace VitaDB
                         ParamError("You must provide a file or URL.");
                         return;
                     }
-                    int type = 0;
-                    if (uri.ToLower().Contains("dlc"))
-                        type = 1;
-                    else if (uri.ToLower().Contains("psn"))
-                        type = 2;
+                    int type;
+                    for (type = Settings.nps_type.Length - 1; type >= 0; type--)
+                    {
+                        if (uri.ToLower().Contains(Settings.nps_type[type].ToLower()))
+                            break;
+                    }
                     if (!String.IsNullOrEmpty(input))
                         ImportCSV(input, type);
                     else

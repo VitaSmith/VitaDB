@@ -164,11 +164,18 @@ namespace VitaDB
             regions_to_check = (r == "ALL") ? regions : new List<string> { r };
         }
 
-        public string GetRegionName(string id)
+        /// <summary>
+        /// Convert a CONTENT_ID to a region.
+        /// </summary>
+        /// <param name="content_id">The content ID.</param>
+        /// <returns>A 3 letter region name.</returns>
+        public string GetRegionName(string content_id)
         {
+            if (content_id.Substring(20, 4) == "ASIA")
+                return "ASN";
             try
             {
-                return config["regions:" + id];
+                return config["regions:" + content_id.Substring(7, 4)];
             }
             catch (Exception)
             {
