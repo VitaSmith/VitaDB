@@ -88,7 +88,7 @@ namespace VitaDB
             root[1] = new List<string>() { "ie", "gb", "cz", "dk", "fi",
                 "no", "se", "gr", "hu", "ro", "sk", "si", "tr", "fr", "de",
                 "it", "es", "nl", "pt", "pl", "il", "at", "au", "ua", "ru" };
-            root[2] = new List<string>() { "hk", "sg" };
+            root[2] = new List<string>() { "sg", "hk" };
             root[3] = new List<string>() { "cn" };
 
             var country = region.Substring(3, 2);
@@ -114,7 +114,7 @@ namespace VitaDB
                 "en-gb", "en-ie", "en-pl", "en-se", "en-no", "en-fi", "en-dk",
                 "en-cz", "en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
                 "en-il", "en-au", "fr-fr", "it-it", "es-es", "de-de", "nl-nl",
-                "pt-pt", "de-at", "ru-ru", "en-hk", "en-sg", "zh-hk"
+                "pt-pt", "de-at", "ru-ru", "en-sg", "en-hk", "zh-hk"
             };
 
             foreach (var region in regions)
@@ -875,8 +875,9 @@ namespace VitaDB
 
             using (var db = new Database())
             {
-                Console.Write("Checking for RO attributes with an empty values... ");
+                Console.Write("Checking for RO attributes with empty values... ");
                 bool pass = true;
+                int i = 0;
                 foreach (var app in db.Apps.Where(x => x.FLAGS != 0))
                 {
                     foreach (var attr in typeof(App).GetProperties())
@@ -898,14 +899,16 @@ namespace VitaDB
                             if (pass)
                                 Console.WriteLine("[FAIL]");
                             Console.Write($"{app.CONTENT_ID}: { String.Join(",", list)}...");
-                            db.SaveChanges();
                             Console.WriteLine(" [FIXED]");
                             pass = false;
                         }
                     }
+                    if (++i % 100 == 0)
+                        db.SaveChanges();
                 }
                 if (pass)
                     Console.WriteLine("[PASS]");
+                db.SaveChanges();
             }
 
             using (var db = new Database())
@@ -1210,7 +1213,7 @@ namespace VitaDB
                         "fr-fr", "it-it", "es-es", "de-de", "nl-nl", "pt-pt", "de-at", "ru-ru"
                     };
                     string[] usa_regions = { "en-us", "en-ca", "es-mx", "pt-br", "es-ar" };
-                    string[] asn_regions = { "en-hk", "en-sg", "zh-hk" };
+                    string[] asn_regions = { "en-sg", "en-hk", "zh-hk" };
                     CheckRegion(usa_regions);
                     CheckRegion(eur_regions);
                     CheckRegion(asn_regions);
