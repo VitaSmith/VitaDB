@@ -60,9 +60,21 @@ namespace VitaDB
         }
 
         /// <summary>
+        /// Add a new PARENT_ID entry.
+        /// </summary>
+        /// <param name="parent_id">The ID to add.</param>
+        public void AddParent(string parent_id)
+        {
+            if (this.PARENT_ID == null)
+                this.PARENT_ID = parent_id;
+            else if (!this.PARENT_ID.Contains(parent_id))
+                this.PARENT_ID += " " + parent_id;
+        }
+
+        /// <summary>
         /// Insert or update a new application entry into the Apps database.
-        /// This method preserves attributes that have been flag to read-only.
-        /// Note: This method only applies changes to the databse every 100 records.
+        /// This method preserves attributes that have been flagged to read-only.
+        /// Note: This method only saves changes to the databse every 100 records.
         /// </summary>
         /// <param name="db">The database context.</param>
         public void Upsert(Database db)
@@ -140,6 +152,30 @@ namespace VitaDB
         }
 
         /// <summary>
+        /// Check if a CONTENT_ID is a Vita title.
+        /// </summary>
+        /// <param name="content_id">The CONTENT_ID.</param>
+        /// <returns>True if Vita CONTENT_ID, false otherwise.</returns>
+        public static bool IsVitaContentID(string content_id)
+        {
+            if (!ValidateContentID(content_id))
+                return false;
+            return (content_id[7] == 'P') || (content_id[7] == 'V');
+        }
+
+        /// <summary>
+        /// Check if a CONTENT_ID is a Bundle.
+        /// </summary>
+        /// <param name="content_id">The CONTENT_ID.</param>
+        /// <returns>True if bundle, false otherwise.</returns>
+        public static bool IsBundleContentID(string content_id)
+        {
+            if (!ValidateContentID(content_id))
+                return false;
+            return content_id.Substring(7, 4) == "CUSA";
+        }
+
+        /// <summary>
         /// Validate that CONTENT_ID matches the expected format.
         /// </summary>
         /// <param name="title_id">The CONTENT_ID string.</param>
@@ -153,104 +189,94 @@ namespace VitaDB
         }
 
         /// <summary>
+        /// Update or add an App to the DB.
+        /// </summary>
+        /// <param name="db">The database context.</param>
+        /// <param name="name">The name the App.</param>
+        /// <param name="content_id">The content ID.</param>
+        /// <param name="parent_id">The content ID of the parent.</param>
+        /// <param name="category">The category.</param>
+        /// <param name="comments">(Optional) A comment string.</param>
+        static void AddApp(Database db, string name, string content_id, string parent_id, int? category, string comments = null)
+        {
+            var app = db.Apps.Find(content_id);
+            if (app == null)
+            {
+                app = new App
+                {
+                    NAME = name,
+                    TITLE_ID = content_id.Substring(7, 9),
+                    CONTENT_ID = content_id,
+                    PARENT_ID = parent_id,
+                    CATEGORY = category,
+                    COMMENTS = comments
+                };
+            }
+            else
+            {
+                app.NAME = name;
+                app.TITLE_ID = content_id.Substring(7, 9);
+                app.AddParent(parent_id);
+                app.CATEGORY = category;
+                app.COMMENTS = comments;
+            }
+            app.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
+            if (comments != null)
+                app.SetReadOnly(db, nameof(App.COMMENTS));
+            app.Upsert(db);
+        }
+
+        /// <summary>
         /// Update an App entry by querying Chihiro.
         /// </summary>
         /// <param name="db">The database context.</param>
-        /// <param name="app">The application entry to update or create.</param>
         /// <param name="lang">(Optional) The language settings to use when querying Chihiro.</param>
-        /// <param name="add_lang">(Optional) If true, also add lang to the COMMENTS field.</param>
+        /// <param name="add_lang">(Optional) If true, add <param name="lang"/> to the COMMENTS field.</param>
         public void UpdateFromChihiro(Database db, string lang = null, bool add_lang = false)
         {
             var data = Chihiro.GetData(CONTENT_ID, lang);
             if (data == null)
                 return;
 
-            if (TITLE_ID.StartsWith('P'))
+            // Process root data
+            NAME = data.name;
+            CATEGORY = db.Category[data.top_category];
+            if (IsVitaContentID(CONTENT_ID))
             {
-                // Straight Vita title
                 Console.WriteLine($"{TITLE_ID}: {data.name}");
-                NAME = data.name;
-                CATEGORY = db.Category[data.top_category];
-                // Data we get from Chihiro is final
-                SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
-                if ((lang != null) && (add_lang))
-                {
-                    COMMENTS = lang;
-                    SetReadOnly(db, nameof(App.COMMENTS));
-                }
-                Upsert(db);
+                AddApp(db, NAME, CONTENT_ID, PARENT_ID, CATEGORY, add_lang ? lang : null);
+            }
 
-                // Update addons
-                foreach (var link in Nullable(data.links))
+            // Process entitlements
+            if (data.default_sku != null)
+            {
+                foreach (var ent in Nullable(data.default_sku.entitlements))
                 {
-                    // May get mixed DLC content
-                    if ((link.id[7] != 'P') && (link.id[7] != 'V'))
+                    if (!IsVitaContentID(ent.id) || (ent.id == CONTENT_ID))
                         continue;
-                    Console.WriteLine($"* {link.id}: {link.top_category}");
-                    var dlc = db.Apps.Find(link.id);
-                    if (dlc == null)
-                    {
-                        dlc = new App
-                        {
-                            NAME = link.name,
-                            TITLE_ID = link.id.Substring(7, 9),
-                            CONTENT_ID = link.id,
-                            PARENT_ID = CONTENT_ID,
-                            CATEGORY = db.Category[link.top_category],
-                        };
-                    }
-                    else
-                    {
-                        dlc.NAME = link.name;
-                        dlc.TITLE_ID = link.id.Substring(7, 9);
-                        if (dlc.PARENT_ID == null)
-                            dlc.PARENT_ID = CONTENT_ID;
-                        else if (!dlc.PARENT_ID.Contains(CONTENT_ID))
-                            dlc.PARENT_ID += " " + CONTENT_ID;
-                        dlc.CATEGORY = db.Category[link.top_category];
-                    }
-                    dlc.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
-                    if ((lang != null) && (add_lang))
-                    {
-                        dlc.COMMENTS = lang;
-                        dlc.SetReadOnly(db, nameof(App.COMMENTS));
-                    }
-                    dlc.Upsert(db);
+                    Console.WriteLine($"* {ent.id}: {ent.name}");
+                    AddApp(db, ent.name, ent.id, CONTENT_ID, CATEGORY, add_lang ? lang : null);
                 }
             }
-            else
+
+            // Process links
+            foreach (var link in Nullable(data.links))
             {
-                // PS3/PS4/Vita bundle
-                Console.WriteLine($"{TITLE_ID} (BUNDLE): {data.name}");
-                if (data.default_sku != null)
+                // May get mixed DLC content
+                if (!IsVitaContentID(link.id))
+                    continue;
+                Console.WriteLine($"* {link.id}: {link.top_category}");
+                AddApp(db, link.name, link.id, CONTENT_ID, db.Category[link.top_category], add_lang ? lang : null);
+
+                // Process sub-entitlements
+                if (link.default_sku != null)
                 {
-                    foreach (var ent in Nullable(data.default_sku.entitlements))
+                    foreach (var ent in Nullable(link.default_sku.entitlements))
                     {
-                        if (ent.id[7] != 'P')
+                        if (!IsVitaContentID(ent.id) || (ent.id == link.id))
                             continue;
-                        Console.WriteLine($"* {ent.id}: {ent.name}");
-                        var app = db.Apps.Find(ent.id);
-                        if (app == null)
-                        {
-                            app = new App
-                            {
-                                NAME = ent.name,
-                                TITLE_ID = ent.id.Substring(7, 9),
-                                CONTENT_ID = ent.id,
-                                PARENT_ID = CONTENT_ID,
-                                CATEGORY = CATEGORY,
-                            };
-                        }
-                        else
-                        {
-                            app.NAME = ent.name;
-                            app.TITLE_ID = ent.id.Substring(7, 9);
-                            if (app.PARENT_ID == null)
-                                app.PARENT_ID = CONTENT_ID;
-                            app.CATEGORY = CATEGORY;
-                        }
-                        app.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
-                        app.Upsert(db);
+                        Console.WriteLine($"  * {ent.id}: {ent.name}");
+                        AddApp(db, ent.name, ent.id, CONTENT_ID, db.Category[link.top_category], add_lang ? lang : null);
                     }
                 }
             }

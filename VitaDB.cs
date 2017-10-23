@@ -72,26 +72,59 @@ namespace VitaDB
         }
 
         /// <summary>
+        /// Return the content root for a specific region.
+        /// </summary>
+        /// <param name="region">A region name.</param>
+        /// <returns>The CONTENT_ID for the root search.</returns>
+        static string GetRootContentId(string region)
+        {
+            string[] root_names =
+            {
+                "STORE-MSF77008-PSVITAALLGAMES",
+                "STORE-MSF75508-PLATFORMPSVITA",
+                "STORE-MSF86012-PSVITAGAMES",
+                "PN.CH.CN-PN.CH.MIXED.CN-PSVITAGAMES",
+            };
+            List<string>[] root = new List<string>[root_names.Length];
+            root[0] = new List<string>() { "us", "ca", "mx", "br", "ar" };
+            root[1] = new List<string>() { "ie", "gb", "cz", "dk", "fi",
+                "no", "se", "gr", "hu", "ro", "sk", "si", "tr", "fr", "de",
+                "it", "es", "nl", "pt", "pl", "il", "at", "au", "ua", "ru" };
+            root[2] = new List<string>() { "hk" };
+            root[3] = new List<string>() { "cn" };
+
+            var country = region.Substring(3, 2);
+            for (int i = 0; i < root_names.Length; i++)
+            {
+                if (root[i].Contains(country))
+                    return root_names[i];
+            }
+            Console.Error.WriteLine($"[ERROR] No root defined for '{region}'");
+            return null;
+        }
+
+
+        /// <summary>
         /// Gets all Vita titles by performing a search for all regions against Chihiro.
         /// </summary>
         /// <param name="reparse">(Optional) Force a reparse of existing DB entries.</param>
         static void RefreshDBFromChihiro(bool reparse = false)
         {
             string[] regions =
-                {
-                    "en-us", "en-ca", "es-mx", "pt-br", "es-ar",
-                    "en-gb", "en-ie", "en-pl", "en-se", "en-no", "en-fi", "en-dk",
-                    "en-cz", "en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
-                    "en-il", "en-au", "fr-fr", "it-it", "es-es", "de-de", "nl-nl",
-                    "pt-pt", "de-at", "ru-ru", "en-hk", "zh-hk"
-                };
+            {
+                "en-us", "en-ca", "es-mx", "pt-br", "es-ar",
+                "en-gb", "en-ie", "en-pl", "en-se", "en-no", "en-fi", "en-dk",
+                "en-cz", "en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
+                "en-il", "en-au", "fr-fr", "it-it", "es-es", "de-de", "nl-nl",
+                "pt-pt", "de-at", "ru-ru", "en-hk", "zh-hk"
+            };
 
             foreach (var region in regions)
             {
                 if (cancel_requested)
                     break;
 
-                var data = Chihiro.GetAllTitles(region);
+                var data = Chihiro.GetData(GetRootContentId(region), region);
                 if ((data == null) || (Nullable(data.links).Count() == 0))
                 {
                     Console.Error.WriteLine($"[WARNING] No titles found for region '{region}'");
@@ -107,7 +140,7 @@ namespace VitaDB
             {
                 if (cancel_requested)
                     break;
-                var data = Chihiro.GetAllTitles("ja-jp", "PN.CH.JP-PN.CH.MIXED.JP-FROM" + group);
+                var data = Chihiro.GetData("PN.CH.JP-PN.CH.MIXED.JP-FROM" + group, "ja-jp");
                 if ((data == null) || (Nullable(data.links).Count() == 0))
                 {
                     Console.Error.WriteLine($"[WARNING] No titles found for JP/{group}");
@@ -125,13 +158,13 @@ namespace VitaDB
         static void CheckRegion(string[] regions)
         {
             Console.WriteLine($"Retrieving content from '{regions[0]}'...");
-            var main_data = Chihiro.GetAllTitles(regions[0]);
+            var main_data = Chihiro.GetData(GetRootContentId(regions[0]), regions[0]);
             var main_content_ids = main_data.links.Where(x => x.id[7] == 'P').Select(x => x.id);
             Dictionary<string, string> dict = new Dictionary<string, string>();
             for (int i = 1; i < regions.Length; i++)
             {
                 Console.WriteLine($"Checking for content that exists in '{regions[i]}' and not in previous region(s)...");
-                var data = Chihiro.GetAllTitles(regions[i]);
+                var data = Chihiro.GetData(GetRootContentId(regions[i]), regions[i]);
                 var content_ids = data.links.Where(x => x.id[7] == 'P').Select(x => x.id);
                 var result = content_ids.Where(x => !main_content_ids.Any(y => y == x));
                 foreach (var content_id in result)
@@ -600,15 +633,15 @@ namespace VitaDB
                     string old_content_id = null;
                     Console.WriteLine($"{app.CONTENT_ID}: {app.PARENT_ID}");
                     // TODO: Make this work with multiple PARENT_IDs
-                    var json = Chihiro.GetData(app.PARENT_ID);
-                    if ((json == null) || (json.default_sku == null) || (json.default_sku.entitlements == null))
+                    var data = Chihiro.GetData(app.PARENT_ID);
+                    if ((data == null) || (data.default_sku == null) || (data.default_sku.entitlements == null))
                     {
                         Console.WriteLine("* NO DICE");
                         continue;
                     }
 
                     string content_id = null;
-                    foreach (var ent in json.default_sku.entitlements)
+                    foreach (var ent in data.default_sku.entitlements)
                     {
                         if (ent.id.Contains(app.TITLE_ID) && App.ValidateContentID(ent.id))
                         {
@@ -624,8 +657,8 @@ namespace VitaDB
                         old_content_id = app.CONTENT_ID;
                         app.CONTENT_ID = content_id;
                     }
-                    app.NAME = json.name;
-                    app.CATEGORY = db.Category[json.top_category];
+                    app.NAME = data.name;
+                    app.CATEGORY = db.Category[data.top_category];
                     app.SetReadOnly(db, nameof(App.NAME), nameof(App.CATEGORY));
                     app.Upsert(db);
                     if (old_content_id != null)
@@ -892,7 +925,7 @@ namespace VitaDB
                         if (cancel_requested)
                             return;
                         // Ignore bundles
-                        if (parent_id[7] != 'P')
+                        if (!App.IsVitaContentID(parent_id))
                             continue;
                         if (!db.Apps.Any(x => x.CONTENT_ID == parent_id))
                             list.Add(parent_id);
@@ -1009,7 +1042,7 @@ namespace VitaDB
                 cancel_requested = true;
             };
 
-            string mode = "nps";
+            string mode = "maintenance";
             string input = null, output = null;
 
             var options = new OptionSet {

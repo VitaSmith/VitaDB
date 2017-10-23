@@ -373,7 +373,7 @@ namespace VitaDB
         }
 
         /// <summary>
-        /// Fetches JSON data from Sony's Chihiro servers.
+        /// Fetch JSON data for a specific CONTENT_ID from Sony's Chihiro servers.
         /// </summary>
         /// <param name="content_id">The CONTENT_ID to look up.</param>
         /// <param name="region">An optional region string, to use with the Chihiro server.
@@ -408,71 +408,9 @@ namespace VitaDB
                             break;
                     }
             }
-            if (String.IsNullOrEmpty(region))
-            {
-                Console.Error.WriteLine($"[ERROR] Could not get language for '{content_id}'");
-                return null;
-            }
             string chihiro_region = region.Substring(3, 2).ToUpper() + "/" + region.Substring(0, 2);
             var url = "https://store.playstation.com/store/api/chihiro/00_09_000/container/" +
-                chihiro_region + "/999/" + content_id;
-            using (WebClient wc = new WebClient())
-            {
-                try
-                {
-                    var json = wc.DownloadString(url);
-                    return String.IsNullOrEmpty(json) ? null : JsonConvert.DeserializeObject<Chihiro.Data>(json);
-                }
-                catch (System.Net.WebException) { }
-            }
-            return null;
-        }
-
-        /// <summary>
-        /// Fetches all Vita titles for a specific region.
-        /// </summary>
-        /// <param name="region">The region to perform the lookup for.
-        /// <param name="root_name">The optional root string to search from.</param>
-        /// <returns>A Chihiro.Data JSON object.</returns>
-        public static Chihiro.Data GetAllTitles(string region, string root_name = null)
-        {
-            string[] root_names = 
-            {
-                "STORE-MSF77008-PSVITAALLGAMES",
-                "STORE-MSF75508-PLATFORMPSVITA",
-                "STORE-MSF86012-PSVITAGAMES",
-                "PN.CH.CN-PN.CH.MIXED.CN-PSVITAGAMES",
-            };
-            List<string>[] root = new List<string>[root_names.Length];
-            root[0] = new List<string>() { "us", "ca", "mx", "br", "ar" };
-            root[1] = new List<string>() { "ie", "gb", "cz", "dk", "fi",
-                "no", "se", "gr", "hu", "ro", "sk", "si", "tr", "fr", "de",
-                "it", "es", "nl", "pt", "pl", "il", "at", "au", "ua", "ru" };
-            root[2] = new List<string>() { "hk" };
-            root[3] = new List<string>() { "cn" };
-
-            if (root_name == null)
-            {
-                var country = region.Substring(3, 2);
-                int i;
-                for (i = 0; i < root_names.Length; i++)
-                {
-                    if (root[i].Contains(country))
-                    {
-                        root_name = root_names[i];
-                        break;
-                    }
-                }
-                if (i > root_names.Length)
-                {
-                    Console.Error.WriteLine($"[ERROR] No root defined for '{region}'");
-                    return null;
-                }
-            }
-
-            string chihiro_region = region.Substring(3, 2).ToUpper() + "/" + region.Substring(0, 2);
-            var url = "https://store.playstation.com/store/api/chihiro/00_09_000/container/" +
-                chihiro_region + "/999/" + root_name + "?sort=name&direction=asc&size=10000";
+                chihiro_region + "/999/" + content_id + "?sort=name&direction=asc&size=10000";
             using (WebClient wc = new WebClient())
             {
                 try
