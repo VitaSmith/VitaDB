@@ -51,8 +51,6 @@ namespace VitaDB
                 {
                     if (cancel_requested)
                         break;
-                    if (link.id[7] != 'P' && link.id[7] != 'V')
-                        continue;
                     var app = db.Apps.Find(link.id);
                     if (app == null)
                     {
@@ -90,7 +88,7 @@ namespace VitaDB
             root[1] = new List<string>() { "ie", "gb", "cz", "dk", "fi",
                 "no", "se", "gr", "hu", "ro", "sk", "si", "tr", "fr", "de",
                 "it", "es", "nl", "pt", "pl", "il", "at", "au", "ua", "ru" };
-            root[2] = new List<string>() { "hk" };
+            root[2] = new List<string>() { "hk", "sg" };
             root[3] = new List<string>() { "cn" };
 
             var country = region.Substring(3, 2);
@@ -116,15 +114,14 @@ namespace VitaDB
                 "en-gb", "en-ie", "en-pl", "en-se", "en-no", "en-fi", "en-dk",
                 "en-cz", "en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
                 "en-il", "en-au", "fr-fr", "it-it", "es-es", "de-de", "nl-nl",
-                "pt-pt", "de-at", "ru-ru", "en-hk", "zh-hk"
+                "pt-pt", "de-at", "ru-ru", "en-hk", "en-sg", "zh-hk"
             };
 
             foreach (var region in regions)
             {
                 if (cancel_requested)
-                    break;
-
-                var data = Chihiro.GetData(GetRootContentId(region), region);
+                    return;
+                var data = Chihiro.GetData(GetRootContentId(region), region, true);
                 if ((data == null) || (Nullable(data.links).Count() == 0))
                 {
                     Console.Error.WriteLine($"[WARNING] No titles found for region '{region}'");
@@ -139,8 +136,8 @@ namespace VitaDB
             foreach (var group in groups)
             {
                 if (cancel_requested)
-                    break;
-                var data = Chihiro.GetData("PN.CH.JP-PN.CH.MIXED.JP-FROM" + group, "ja-jp");
+                    return;
+                var data = Chihiro.GetData("PN.CH.JP-PN.CH.MIXED.JP-FROM" + group, "ja-jp", true);
                 if ((data == null) || (Nullable(data.links).Count() == 0))
                 {
                     Console.Error.WriteLine($"[WARNING] No titles found for JP/{group}");
@@ -158,13 +155,13 @@ namespace VitaDB
         static void CheckRegion(string[] regions)
         {
             Console.WriteLine($"Retrieving content from '{regions[0]}'...");
-            var main_data = Chihiro.GetData(GetRootContentId(regions[0]), regions[0]);
+            var main_data = Chihiro.GetData(GetRootContentId(regions[0]), regions[0], true);
             var main_content_ids = main_data.links.Where(x => x.id[7] == 'P').Select(x => x.id);
             Dictionary<string, string> dict = new Dictionary<string, string>();
             for (int i = 1; i < regions.Length; i++)
             {
                 Console.WriteLine($"Checking for content that exists in '{regions[i]}' and not in previous region(s)...");
-                var data = Chihiro.GetData(GetRootContentId(regions[i]), regions[i]);
+                var data = Chihiro.GetData(GetRootContentId(regions[i]), regions[i], true);
                 var content_ids = data.links.Where(x => x.id[7] == 'P').Select(x => x.id);
                 var result = content_ids.Where(x => !main_content_ids.Any(y => y == x));
                 foreach (var content_id in result)
@@ -1042,7 +1039,7 @@ namespace VitaDB
                 cancel_requested = true;
             };
 
-            string mode = "maintenance";
+            string mode = "nps";
             string input = null, output = null;
 
             var options = new OptionSet {
@@ -1213,7 +1210,7 @@ namespace VitaDB
                         "fr-fr", "it-it", "es-es", "de-de", "nl-nl", "pt-pt", "de-at", "ru-ru"
                     };
                     string[] usa_regions = { "en-us", "en-ca", "es-mx", "pt-br", "es-ar" };
-                    string[] asn_regions = { "en-hk", "zh-hk" };
+                    string[] asn_regions = { "en-hk", "en-sg", "zh-hk" };
                     CheckRegion(usa_regions);
                     CheckRegion(eur_regions);
                     CheckRegion(asn_regions);

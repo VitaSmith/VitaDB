@@ -376,12 +376,13 @@ namespace VitaDB
         /// Fetch JSON data for a specific CONTENT_ID from Sony's Chihiro servers.
         /// </summary>
         /// <param name="content_id">The CONTENT_ID to look up.</param>
-        /// <param name="region">An optional region string, to use with the Chihiro server.
+        /// <param name="region">(Optional) A region string, to use with the Chihiro server.
         /// If this parameter is not provided, the language to use is deduced from content_id</param>
+        /// <param name="no_validation">(Optional) If true, content_id will not be validated.</param>
         /// <returns>A Chihiro.Data JSON object.</returns>
-        public static Chihiro.Data GetData(string content_id, string region = null)
+        public static Data GetData(string content_id, string region = null, bool no_validation = false)
         {
-            if (!App.ValidateContentID(content_id))
+            if (!no_validation && !App.ValidateContentID(content_id))
             {
                 Console.Error.WriteLine($"[ERROR] '{content_id}' is not valid");
                 return null;
