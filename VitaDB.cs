@@ -82,6 +82,7 @@ namespace VitaDB
                 "STORE-MSF75508-PLATFORMPSVITA",
                 "STORE-MSF86012-PSVITAGAMES",
                 "PN.CH.CN-PN.CH.MIXED.CN-PSVITAGAMES",
+                "PN.CH.JP-PN.CH.MIXED.JP-PSVAPPLICATION",
             };
             List<string>[] root = new List<string>[root_names.Length];
             root[0] = new List<string>() { "us", "ca", "mx", "br", "ar" };
@@ -90,6 +91,7 @@ namespace VitaDB
                 "it", "es", "nl", "pt", "pl", "il", "at", "au", "ua", "ru" };
             root[2] = new List<string>() { "sg", "hk" };
             root[3] = new List<string>() { "cn" };
+            root[4] = new List<string>() { "jp" };
 
             var country = region.Substring(3, 2);
             for (int i = 0; i < root_names.Length; i++)
@@ -114,7 +116,7 @@ namespace VitaDB
                 "en-gb", "en-ie", "en-pl", "en-se", "en-no", "en-fi", "en-dk",
                 "en-cz", "en-gr", "en-hu", "en-ro", "en-sk", "en-si", "en-tr",
                 "en-il", "en-au", "fr-fr", "it-it", "es-es", "de-de", "nl-nl",
-                "pt-pt", "de-at", "ru-ru", "en-sg", "en-hk", "zh-hk"
+                "pt-pt", "de-at", "ru-ru", "en-sg", "en-hk", "zh-hk", "ja-jp"
             };
 
             foreach (var region in regions)
