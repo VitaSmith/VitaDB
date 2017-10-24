@@ -344,7 +344,7 @@ namespace VitaDB
                     Console.SetCursorPosition(0, Console.CursorTop);
                     Console.Write($"[{csv.Parser.Row.ToString(format)}/{total_nr}] ");
                     var app = csv.GetRecord<App>();
-                    if (app == null)
+                    if ((app == null) || (app.TITLE_ID == "CAU"))
                         continue;
 
                     // Remove bad data

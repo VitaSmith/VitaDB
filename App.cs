@@ -199,6 +199,8 @@ namespace VitaDB
         /// <param name="comments">(Optional) A comment string.</param>
         static void AddApp(Database db, string name, string content_id, string parent_id, int? category, string comments = null)
         {
+            if (parent_id == content_id)
+                parent_id = null;
             var app = db.Apps.Find(content_id);
             if (app == null)
             {
