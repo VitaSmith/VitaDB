@@ -14,6 +14,8 @@ using Mono.Options;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.DrawingCore;
+using System.DrawingCore.Imaging;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -875,43 +877,43 @@ namespace VitaDB
                     Console.WriteLine("[PASS]");
             }
 
-            using (var db = new Database())
-            {
-                Console.Write("Checking for RO attributes with empty values... ");
-                bool pass = true;
-                int i = 0;
-                foreach (var app in db.Apps.Where(x => x.FLAGS != 0))
-                {
-                    foreach (var attr in typeof(App).GetProperties())
-                    {
-                        List<string> list = new List<string>();
-                        UInt16 val;
-                        if (db.Flag.TryGetValue(attr.Name + "_RO", out val))
-                        {
-                            if ((app.GetType().GetProperty(attr.Name).GetValue(app, null) == null) &&
-                                    ((app.FLAGS & val) != 0))
-                            {
-                                list.Add(attr.Name);
-                                db.Apps.Find(app.CONTENT_ID);
-                                app.FLAGS &= (UInt16)~db.Flag[attr.Name + "_RO"];
-                            }
-                        }
-                        if (list.Count != 0)
-                        {
-                            if (pass)
-                                Console.WriteLine("[FAIL]");
-                            Console.Write($"{app.CONTENT_ID}: { String.Join(",", list)}...");
-                            Console.WriteLine(" [FIXED]");
-                            pass = false;
-                        }
-                    }
-                    if (++i % 100 == 0)
-                        db.SaveChanges();
-                }
-                if (pass)
-                    Console.WriteLine("[PASS]");
-                db.SaveChanges();
-            }
+            //using (var db = new Database())
+            //{
+            //    Console.Write("Checking for RO attributes with empty values... ");
+            //    bool pass = true;
+            //    int i = 0;
+            //    foreach (var app in db.Apps.Where(x => x.FLAGS != 0))
+            //    {
+            //        foreach (var attr in typeof(App).GetProperties())
+            //        {
+            //            List<string> list = new List<string>();
+            //            UInt16 val;
+            //            if (db.Flag.TryGetValue(attr.Name + "_RO", out val))
+            //            {
+            //                if ((app.GetType().GetProperty(attr.Name).GetValue(app, null) == null) &&
+            //                        ((app.FLAGS & val) != 0))
+            //                {
+            //                    list.Add(attr.Name);
+            //                    db.Apps.Find(app.CONTENT_ID);
+            //                    app.FLAGS &= (UInt16)~db.Flag[attr.Name + "_RO"];
+            //                }
+            //            }
+            //            if (list.Count != 0)
+            //            {
+            //                if (pass)
+            //                    Console.WriteLine("[FAIL]");
+            //                Console.Write($"{app.CONTENT_ID}: { String.Join(",", list)}...");
+            //                Console.WriteLine(" [FIXED]");
+            //                pass = false;
+            //            }
+            //        }
+            //        if (++i % 100 == 0)
+            //            db.SaveChanges();
+            //    }
+            //    if (pass)
+            //        Console.WriteLine("[PASS]");
+            //    db.SaveChanges();
+            //}
 
             using (var db = new Database())
             {
@@ -947,34 +949,59 @@ namespace VitaDB
 
             using (var db = new Database())
             {
-                Console.Write("Checking for PARENT_IDs that have Add-on type... ");
-                HashSet<string> list = new HashSet<string>();
-                foreach (var app_with_parent in db.Apps.Where(x => x.PARENT_ID != null))
-                {
-                    foreach (var parent_id in app_with_parent.PARENT_ID.Split(' '))
-                    {
-                        if (cancel_requested)
-                            return;
-                        var app = db.Apps
-                            .Where(x => (x.CONTENT_ID == parent_id) && (x.CATEGORY > 100))
-                            .FirstOrDefault();
-                        if (app != null)
-                            list.Add(parent_id);
-                    }
-                }
-
-                var ordered_list = list.OrderBy(x => x.Substring(7, 9));
-                if (ordered_list.Count() == 0)
+                Console.Write("Checking for CONTENT_IDs that are included in their own PARENT_IDs... ");
+                var content_ids = db.Apps
+                    .Where(x => (x.PARENT_ID != null && x.PARENT_ID.Contains(x.CONTENT_ID)))
+                    .Select(x => x.CONTENT_ID);
+                if (content_ids.Count() == 0)
                 {
                     Console.WriteLine("[PASS]");
                 }
                 else
                 {
                     Console.WriteLine("[FAIL]");
-                    foreach (var entry in ordered_list)
-                        Console.WriteLine("* " + entry);
+                    foreach (var content_id in content_ids)
+                    {
+                        Console.Write($"* {content_id}...");
+                        var app = db.Apps.Find(content_id);
+                        var parent_ids = app.PARENT_ID.Split(' ').Where(x => x != content_id);
+                        app.PARENT_ID = string.Join(' ', parent_ids);
+                        db.SaveChanges();
+                        Console.WriteLine("[FIXED]");
+                    }
                 }
             }
+
+        //    using (var db = new Database())
+        //    {
+        //        Console.Write("Checking for PARENT_IDs that have Add-on type... ");
+        //        HashSet<string> list = new HashSet<string>();
+        //        foreach (var app_with_parent in db.Apps.Where(x => x.PARENT_ID != null))
+        //        {
+        //            foreach (var parent_id in app_with_parent.PARENT_ID.Split(' '))
+        //            {
+        //                if (cancel_requested)
+        //                    return;
+        //                var app = db.Apps
+        //                    .Where(x => (x.CONTENT_ID == parent_id) && (x.CATEGORY > 100))
+        //                    .FirstOrDefault();
+        //                if (app != null)
+        //                    list.Add(parent_id);
+        //            }
+        //        }
+
+        //        var ordered_list = list.OrderBy(x => x.Substring(7, 9));
+        //        if (ordered_list.Count() == 0)
+        //        {
+        //            Console.WriteLine("[PASS]");
+        //        }
+        //        else
+        //        {
+        //            Console.WriteLine("[FAIL]");
+        //            foreach (var entry in ordered_list)
+        //                Console.WriteLine("* " + entry);
+        //        }
+        //    }
         }
 
         /// <summary>
@@ -1028,6 +1055,59 @@ namespace VitaDB
             ImportZRif("zrifs.txt");
         }
 
+        /// <summary>
+        /// Quick deviation analysis of the characters used in the zeus base-52 hashes.
+        /// </summary>
+        static void DeviationAnalysis()
+        {
+            int[] widths = { 64, 101 };
+            int height = 52;
+            foreach (int width in widths)
+            {
+                int[,] table = new int[width, height];
+                Dictionary<char, int> dict = new Dictionary<char, int>();
+                for (int i = 0; i < 26; i++)
+                {
+                    dict[(char)('a' + i)] = i;
+                    dict[(char)('A' + i)] = 26 + i;
+                }
+                using (var db = new Database())
+                {
+                    var hashes = db.Pkgs
+                        .Where(x => (x.URL.Length == 59 + width) && (x.URL.Substring(7, 4) == "zeus"))
+                        .Select(x => x.URL.Substring(55, width));
+                    Console.WriteLine($"Length {width}: got {hashes.Count()} hashes");
+                    int mean = hashes.Count() / height;
+                    foreach (var hash in hashes)
+                    {
+                        for (int x = 0; x < width; x++)
+                            table[x, dict[hash[x]]]++;
+                    }
+
+                    int max = 0;
+                    for (int x = 0; x < width; x++)
+                        for (int y = 0; y < height; y++)
+                        {
+                            table[x, y] = (table[x, y] - mean) * (table[x, y] - mean);
+                            if (table[x, y] > max)
+                                max = table[x, y];
+                        }
+
+                    Console.WriteLine($"mean {mean}, max deviation = {max}");
+                    Console.WriteLine("Generating output 'zeus_" + width + ".bmp'...");
+                    var bmp = new Bitmap(width, height, PixelFormat.Format8bppIndexed);
+                    ColorPalette ncp = bmp.Palette;
+                    for (int i = 0; i < 256; i++)
+                        ncp.Entries[i] = Color.FromArgb(255, i, i, i);
+                    bmp.Palette = ncp;
+                    for (int y = 0; y < height; y++)
+                        for (int x = 0; x < width; x++)
+                            bmp.SetPixel(x, y, ncp.Entries[table[x, y] * 255 / max]);
+                    bmp.Save("zeus_" + width + ".bmp");
+                }
+            }
+        }
+
         public static void ParamError(string message)
         {
             Console.Write($"{Settings.Instance.application_name} {version}: ");
@@ -1056,6 +1136,7 @@ namespace VitaDB
                 { "chihiro", "refresh db from Chihiro", x => mode = "chihiro" },
                 { "psn", "refresh db from PSN", x => mode = "psn" },
                 { "region", "internal region check", x=> mode = "region" },
+                { "deviation", "deviation analysis of the zeus base 52 PKG URLs", x => mode = "deviation" },
                 { "d|dump", "dump database to SQL (requires sqlite3.exe)", x => mode = "dump" },
                 { "p|purge", "purge/create a new PKG cache dictionary", x => purge_pkgcache = true },
                 { "u|url=", "update DB from PSN Store/Pkg URL(s)", x => {mode = "url"; input = x; } },
@@ -1196,6 +1277,9 @@ namespace VitaDB
                     break;
                 case "version":
                     Console.WriteLine($"{Settings.Instance.application_name} {version}");
+                    break;
+                case "deviation":
+                    DeviationAnalysis();
                     break;
                 case "zrif":
                     if (String.IsNullOrEmpty(input) && String.IsNullOrEmpty(output))
