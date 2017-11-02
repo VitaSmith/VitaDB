@@ -1305,6 +1305,8 @@ namespace VitaDB
                     CheckRegion(eur_regions);
                     CheckRegion(asn_regions);
                     break;
+                case "test":
+                    break;
                 default:
                     Console.Error.WriteLine("Unsupported mode.");
                     break;

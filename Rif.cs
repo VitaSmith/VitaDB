@@ -92,10 +92,10 @@ namespace VitaDB
         /// Decode a zRIF encoded string to a RIF byte array.
         /// </summary>
         /// <param name="zrif">The zRIF string</param>
-        /// <returns>The 512-byte RIF byte array, or null on error</returns>
+        /// <returns>The RIF byte array, or null on error</returns>
         public static byte[] Decode(string zrif)
         {
-            byte[] input, output = new byte[512];
+            byte[] input, output = new byte[1024];
 
             try
             {
@@ -125,7 +125,15 @@ namespace VitaDB
             inflater.Inflate(output);
             if (inflater.IsNeedingDictionary)
                 inflater.SetDictionary(zrif_dict);
-            return (inflater.Inflate(output, 0, 512) == 512) ? output : null;
+            switch(inflater.Inflate(output))
+            {
+                case 1024:
+                    return output;
+                case 512:
+                    return MemCpy(output, 0, 512);
+                default:
+                    return null;
+            }
         }
 
         /// <summary>
@@ -137,7 +145,7 @@ namespace VitaDB
         {
             byte[] output = new byte[128 + 2];
 
-            if (rif.Length != 512)
+            if ((rif.Length != 512) && (rif.Length != 1024))
             {
                 Console.Error.WriteLine("[ERROR] invalid RIF length");
                 return null;

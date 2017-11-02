@@ -49,7 +49,7 @@ namespace VitaDB
         static readonly byte[] pkg_vita4 = { 0xaf, 0x07, 0xfd, 0x59, 0x65, 0x25, 0x27, 0xba, 0xf1, 0x33, 0x89, 0x66, 0x8b, 0x17, 0xd9, 0xea };
 
         private static Dictionary<string, string> pkg_cache_dict = null;
-        // Converts between content type and category, for cases where we can't get ir from SFO
+        // Converts between content type and category, for cases where we can't get it from SFO
         private static readonly Dictionary<UInt32, string> content_type = new Dictionary<UInt32, string>
         {
             { 0x06, "ps1" },
@@ -67,7 +67,7 @@ namespace VitaDB
             { 0x1D, "psm" },
             { 0x1f, "th" }
         };
-        // The only packages we are the ones from known Sony servers
+        // The only URLs we allow are the ones from known Sony servers
         private static readonly List<string> pkg_start = new List<string>
         {
             "http://zeus.dl.playstation.net/",
