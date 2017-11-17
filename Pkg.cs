@@ -53,7 +53,11 @@ namespace VitaDB
         private static readonly Dictionary<UInt32, string> content_type = new Dictionary<UInt32, string>
         {
             { 0x06, "ps1" },
-            { 0x07, "pce" },
+            { 0x07, "psp" },    // Also PC Engine
+            { 0x09, "th" },
+            { 0x0a, "wdg" },
+            { 0x0b, "lic" },
+            { 0x0c, "vsh" },
             { 0x0d, "av" },
             { 0x0e, "go" },
             { 0x0f, "min" },
@@ -63,6 +67,7 @@ namespace VitaDB
             { 0x14, "psp" },
             { 0x15, "gd" },
             { 0x16, "ac" },
+            { 0x17, "la" },
             { 0x18, "psm" },
             { 0x1D, "psm" },
             { 0x1f, "th" }
