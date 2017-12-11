@@ -20,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using static VitaDB.Utilities;
 
 namespace VitaDB
@@ -418,6 +419,10 @@ namespace VitaDB
                     // If we don't have a TITLE_ID, try to create one from CONTENT_ID
                     if (String.IsNullOrEmpty(app.TITLE_ID) && !String.IsNullOrEmpty(app.CONTENT_ID))
                         app.TITLE_ID = app.CONTENT_ID.Substring(7, 9);
+
+                    // Fix title
+                    app.TITLE_ID = app.TITLE_ID.Replace("(3.61+!)", "").Trim();
+                    app.TITLE_ID = Regex.Replace(app.TITLE_ID, @"\s+", " ");
 
                     // Set the category
                     if (app.TITLE_ID.ToLower().Contains("dlc"))
