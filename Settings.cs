@@ -27,11 +27,11 @@ namespace VitaDB
         public string remote_sql = "https://raw.githubusercontent.com/VitaSmith/VitaDB/master/VitaDB.sql";
         public string local_cache = "PkgCache.json";
         public string remote_cache = "https://raw.githubusercontent.com/VitaSmith/VitaDB/master/PkgCache.json";
-        public static readonly string[] nps_type = new string[] { "App", "DLC", "Theme", "PSM" };
-        public static readonly int[] nps_category = { 1, 101, 201, 601 };
+        public static readonly string[] nps_type = new string[] { "App", "Demo", "DLC", "Theme", "PSM" };
+        public static readonly int[] nps_category = { 1, 3, 101, 201, 601 };
         public string[] nps_url = new string[nps_type.Length];
         public int[] range = { 1, 1300 };
-        public string csv_separator = ",";
+        public string csv_separator = "	";
         public bool csv_force_recheck = false;
 
         public List<string> regions = null;
@@ -47,6 +47,16 @@ namespace VitaDB
                     instance = new Settings();
                 return instance;
             }
+        }
+
+        private static void AssignFromConfigString(ref string member, string value)
+        {
+            try
+            {
+                if (config[value] != null)
+                    member = config[value];
+            }
+            catch (Exception) { }
         }
 
         private Settings()
@@ -67,50 +77,15 @@ namespace VitaDB
             if (config == null)
                 return;
 
-            try
-            {
-                database_name = config["db:name"];
-            }
-            catch (Exception) { }
-
-            try
-            {
-                local_sql = config["db:local_sql"];
-            }
-            catch (Exception) { }
-
-            try
-            {
-                remote_sql = config["db:remote_sql"];
-            }
-            catch (Exception) { }
-
-            try
-            {
-                local_cache = config["db:local_cache"];
-            }
-            catch (Exception) { }
-
-            try
-            {
-                remote_cache = config["db:remote_cache"];
-            }
-            catch (Exception) { }
-
-            try
-            {
-                csv_separator = config["csv:separator"];
-            }
-            catch (Exception) { }
+            AssignFromConfigString(ref database_name, "db:name");
+            AssignFromConfigString(ref local_sql, "db:local_sql");
+            AssignFromConfigString(ref remote_sql, "db:remote_sql");
+            AssignFromConfigString(ref local_cache, "db:local_cache");
+            AssignFromConfigString(ref remote_cache, "db:remote_cache");
+            AssignFromConfigString(ref csv_separator, "csv:separator");
 
             for (int i = 0; i < nps_type.Length; i++)
-            {
-                try
-                {
-                    nps_url[i] = config["csv:nps_" + nps_type[i].ToLower()];
-                }
-                catch (Exception) { }
-            }
+                AssignFromConfigString(ref nps_url[i], "csv:nps_" + nps_type[i].ToLower());
 
             foreach (var property in typeof(App).GetProperties())
                 csv_mapping.Add(property.Name, property.Name);

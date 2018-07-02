@@ -466,7 +466,7 @@ namespace VitaDB
 
                     if (!app.CONTENT_ID.Contains(app.TITLE_ID))
                     {
-                        if ((app.CATEGORY < 100) || (!app.PARENT_ID.Contains(app.TITLE_ID)))
+                        if ((app.CATEGORY < 100) || (app.PARENT_ID == null) || (!app.PARENT_ID.Contains(app.TITLE_ID)))
                         {
                             Console.Error.WriteLine($"[WARNING] TITLE_ID ({app.TITLE_ID}) and CONTENT_ID ({app.CONTENT_ID}) do not match");
                             continue;
