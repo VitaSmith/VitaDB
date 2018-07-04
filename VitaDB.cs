@@ -570,6 +570,8 @@ namespace VitaDB
             Console.WriteLine($"Importing zRIFs from '{file_path}':");
             var watch = System.Diagnostics.Stopwatch.StartNew();
             using (var db = new Database())
+            // You *REALLY* want to use a transaction on this one
+            using (var transaction = db.Database.BeginTransaction())
             {
                 var lines = File.ReadLines(file_path);
                 string format = "D" + (int)(Math.Log10((double)lines.Count()) + 0.99999);
@@ -597,14 +599,23 @@ namespace VitaDB
                             CONTENT_ID = content_id,
                             ZRIF = zrif
                         };
+                        app.Upsert(db);
                     }
                     else
                     {
                         app.ZRIF = zrif;
+                        // Don't bother with upset here - it's not needed and will slow us down
                     }
-                    app.Upsert(db);
                 }
-                db.SaveChanges();
+                if (!cancel_requested)
+                {
+                    db.SaveChanges();
+                    transaction.Commit();
+                }
+                else
+                {
+                    transaction.Rollback();
+                }
             }
             watch.Stop();
             Console.WriteLine($"{(cancel_requested ? "CANCELLED after" : "DONE in")}" +
@@ -1211,7 +1222,7 @@ namespace VitaDB
                 { "u|url=", "update DB from PSN Store/Pkg URL(s)", x => {mode = "url"; input = x; } },
                 { "version", "display version and exit", x => mode = "version" },
                 { "v", "increase verbosity", x => verbosity++ },
-                { "z|zrif=", "import/export zRIFs", x => mode = "zrif" },
+                { "z|zrif", "import/export zRIFs", x => mode = "zrif" },
                 { "w|wait-for-key", "wait for keypress before exiting", x => wait_for_key = true },
                 { "h|help", "show this message and exit", x => mode = "help" },
             };
