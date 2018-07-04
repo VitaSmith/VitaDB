@@ -279,7 +279,8 @@ namespace VitaDB
             using (JsonWriter writer = new JsonTextWriter(sw))
             {
                 Debug.WriteLine($"Saving PKG cache to '{file_path}'...");
-                serializer.Serialize(writer, pkg_cache_dict);
+                // Might as well sort our saved output...
+                serializer.Serialize(writer, new SortedDictionary<string, string>(pkg_cache_dict));
             }
         }
 
