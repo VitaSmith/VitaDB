@@ -65,7 +65,9 @@ namespace VitaDB
         /// <param name="parent_id">The ID to add.</param>
         public void AddParent(string parent_id)
         {
-            if (this.PARENT_ID == null)
+            if (String.IsNullOrEmpty(parent_id))
+                return;
+            if (String.IsNullOrEmpty(this.PARENT_ID))
                 this.PARENT_ID = parent_id;
             else if (!this.PARENT_ID.Contains(parent_id))
                 this.PARENT_ID += " " + parent_id;

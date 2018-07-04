@@ -38,6 +38,12 @@ namespace VitaDB
         private static int verbosity = 0;
         private static bool wait_for_key = false;
         private static bool purge_pkgcache = false;
+        public sealed class AppCsvClassMap : ClassMap<App>
+        {
+            public AppCsvClassMap()
+            {
+            }
+        }
 
 
         /// <summary>
@@ -321,19 +327,21 @@ namespace VitaDB
 
                 var csv = new CsvReader(reader);
                 // Create the CSV mapping
-                var csv_map = new DefaultCsvClassMap<App>();
+                var csv_map = new AppCsvClassMap();
+                // https://github.com/JoshClose/CsvHelper/issues/719#issuecomment-342837614
                 foreach (string key in Settings.Instance.csv_mapping.Keys)
                 {
                     var property = typeof(App).GetProperty(key);
-                    var mapping = new CsvPropertyMap(property);
-                    mapping.Name(Settings.Instance.csv_mapping[key]);
-                    csv_map.PropertyMaps.Add(mapping);
+                    var mapping = MemberMap.CreateGeneric(typeof(App), property);
+                    mapping.Data.Names.Add(Settings.Instance.csv_mapping[key]);
+                    csv_map.MemberMaps.Add(mapping);
                 }
                 csv.Configuration.AllowComments = true;
-                csv.Configuration.SkipEmptyRecords = true;
-                csv.Configuration.TrimFields = true;
-                csv.Configuration.TrimHeaders = true;
-                csv.Configuration.WillThrowOnMissingField = false;
+                csv.Configuration.IgnoreBlankLines = true;
+                csv.Configuration.TrimOptions = TrimOptions.Trim;
+                csv.Configuration.HeaderValidated = null;
+                csv.Configuration.MissingFieldFound = null;
+                csv.Configuration.IgnoreQuotes = true;
                 csv.Configuration.RegisterClassMap(csv_map);
                 csv.Configuration.Delimiter = Settings.Instance.csv_separator;
 
@@ -343,7 +351,7 @@ namespace VitaDB
                         break;
                     string source = "???";
                     Console.SetCursorPosition(0, Console.CursorTop);
-                    Console.Write($"[{csv.Parser.Row.ToString(format)}/{total_nr}] ");
+                    Console.Write($"[{csv.Parser.Context.Row.ToString(format)}/{total_nr}] ");
                     var app = csv.GetRecord<App>();
                     if ((app == null) || (app.TITLE_ID == "CAU"))
                         continue;
@@ -522,11 +530,10 @@ namespace VitaDB
             if (type < 0 || type >= Settings.nps_type.Length)
                 return;
             Console.Write($"Dumping all {Settings.nps_type[type]} entries to '{file_path}'... ");
-            using (var writer = File.CreateText(file_path))
+            using (var writer = File.CreateText(file_path)) // UTF-8 by default
             using (var db = new Database())
             {
                 var csv = new CsvWriter(writer);
-                csv.Configuration.Encoding = System.Text.Encoding.UTF8;
                 writer.WriteLine("TITLE_ID,REGION,NAME,PKG_URL,CONTENT_ID");
                 foreach (var app in db.Apps.Where(
                     x => (x.CATEGORY >= Settings.nps_category[type]) && (x.CATEGORY < Settings.nps_category[type] + 99))
@@ -1007,6 +1014,62 @@ namespace VitaDB
         //                Console.WriteLine("* " + entry);
         //        }
         //    }
+
+            //using (var db = new Database())
+            //{
+            //    Console.Write("Checking for PARENT_IDs that should be trimmed... ");
+            //    bool pass = true;
+            //    foreach (var app_with_parent in db.Apps.Where(x => x.PARENT_ID != null))
+            //    {
+            //        if (app_with_parent.PARENT_ID.Trim() != app_with_parent.PARENT_ID)
+            //        {
+            //            if (pass)
+            //                Console.WriteLine("[FAIL]");
+            //            pass = false;
+            //            Console.Write($"* '{app_with_parent.PARENT_ID}'...");
+            //            db.Apps.Find(app_with_parent.CONTENT_ID);
+            //            app_with_parent.PARENT_ID = app_with_parent.PARENT_ID.Trim();
+            //            db.SaveChanges();
+            //            Console.WriteLine("[FIXED]");
+            //        }
+            //    }
+            //    if (pass)
+            //        Console.WriteLine("[PASS]");
+            //}
+
+            using (var db = new Database())
+            {
+                Console.Write("Checking for PARENT_IDs that have Demo type... ");
+                bool pass = true;
+                foreach (var app_with_parent in db.Apps.Where(x => (x.PARENT_ID != null && x.CATEGORY < 3)))
+                {
+                    foreach (var parent_id in app_with_parent.PARENT_ID.Split(' '))
+                    {
+                        if (cancel_requested)
+                            return;
+                        var app = db.Apps
+                            .Where(x => (x.CONTENT_ID == parent_id) && (x.CATEGORY == 3))
+                            .FirstOrDefault();
+                        if (app != null)
+                        {
+                            if (pass)
+                                Console.WriteLine("[FAIL]");
+                            pass = false;
+                            Console.Write("* '" + app_with_parent.PARENT_ID + "' -> '");
+                            db.Apps.Find(app_with_parent.CONTENT_ID);
+                            app_with_parent.PARENT_ID = app_with_parent.PARENT_ID.Replace(app.CONTENT_ID, "");
+                            app_with_parent.PARENT_ID = app_with_parent.PARENT_ID.Replace("  ", " ");
+                            app_with_parent.PARENT_ID = app_with_parent.PARENT_ID.Trim();
+                            Console.WriteLine(app_with_parent.PARENT_ID + "'");
+                            if (app_with_parent.PARENT_ID.Length == 0)
+                                app_with_parent.PARENT_ID = null;
+                            db.SaveChanges();
+                        }
+                    }
+                }
+                if (pass)
+                    Console.WriteLine("[PASS]");
+            }
         }
 
         /// <summary>
@@ -1124,6 +1187,7 @@ namespace VitaDB
 
         public static void Main(string[] args)
         {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.CancelKeyPress += delegate (object sender, ConsoleCancelEventArgs e) {
                 e.Cancel = true;
                 cancel_requested = true;
@@ -1136,8 +1200,8 @@ namespace VitaDB
                 { "m|maintenance", "perform database maintenance", x => mode = "maintenance" },
                 { "i|input=", "name of the input file or URL", x => input = x },
                 { "o|output=", "name of the output file", x => output = x },
-                { "c|csv", "import/export CSV (Content type is deduced from filename)", x => mode = "csv" },
-                { "n|nps", "import data from NoPayStation online spreadsheet", x => mode = "nps" },
+                { "c|csv", "import/export CSV/TSV (Content type is deduced from filename)", x => mode = "csv" },
+                { "n|nps", "import data from NoPayStation", x => mode = "nps" },
                 { "chihiro", "refresh db from Chihiro", x => mode = "chihiro" },
                 { "psn", "refresh db from PSN", x => mode = "psn" },
                 { "region", "internal region check", x=> mode = "region" },
@@ -1147,7 +1211,7 @@ namespace VitaDB
                 { "u|url=", "update DB from PSN Store/Pkg URL(s)", x => {mode = "url"; input = x; } },
                 { "version", "display version and exit", x => mode = "version" },
                 { "v", "increase verbosity", x => verbosity++ },
-                { "z|zrif", "import/export zRIFs", x => mode = "zrif" },
+                { "z|zrif=", "import/export zRIFs", x => mode = "zrif" },
                 { "w|wait-for-key", "wait for keypress before exiting", x => wait_for_key = true },
                 { "h|help", "show this message and exit", x => mode = "help" },
             };
