@@ -1118,9 +1118,17 @@ namespace VitaDB
                 RedirectStandardError = true
             };
 
-            Console.Write($"Dumping {Settings.Instance.database_name} to '{Settings.Instance.local_sql}'... ");
             Process proc = new Process { StartInfo = psi };
             proc.Start();
+
+            Console.Write($"Reordering 'Apps' table... ");
+            proc.StandardInput.WriteLine("CREATE TABLE `Apps_Ordered` (`TITLE_ID` TEXT NOT NULL, `NAME` TEXT, `ALT_NAME` TEXT, `CONTENT_ID` TEXT NOT NULL UNIQUE, `PARENT_ID` TEXT, `CATEGORY` INTEGER, `PKG_ID` INTEGER UNIQUE, `ZRIF` TEXT, `COMMENTS` TEXT, `FLAGS` INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(`CATEGORY`) REFERENCES `Categories`(`VALUE`), PRIMARY KEY(`CONTENT_ID`), FOREIGN KEY(`PKG_ID`) REFERENCES `Pkgs`(`ID`));");
+            proc.StandardInput.WriteLine("INSERT INTO Apps_Ordered SELECT * FROM Apps ORDER BY TITLE_ID, CATEGORY, CONTENT_ID;");
+            proc.StandardInput.WriteLine("DROP TABLE Apps;");
+            proc.StandardInput.WriteLine("ALTER TABLE Apps_Ordered RENAME TO Apps;");
+            Console.WriteLine("DONE");
+
+            Console.Write($"Dumping {Settings.Instance.database_name} to '{Settings.Instance.local_sql}'... ");
             proc.StandardInput.WriteLine($".output {Settings.Instance.local_sql}");
             foreach (var table in tables)
                 proc.StandardInput.WriteLine($".dump {table}");
