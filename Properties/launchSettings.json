@@ -2,7 +2,8 @@
   "profiles": {
     "VitaDB": {
       "commandName": "Project",
-      "commandLineArgs": "--wait-for-key"
+      "commandLineArgs": "--wait-for-key",
+      "workingDirectory": "C:\\VitaDB"
     }
   }
 }

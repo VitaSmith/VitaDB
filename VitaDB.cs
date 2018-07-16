@@ -322,7 +322,7 @@ namespace VitaDB
             using (var reader = File.OpenText(uri))
             using (var db = new Database())
             {
-                int total_nr = File.ReadLines(uri).Count();
+                int total_nr = File.ReadAllLines(uri).Count();
                 string format = "D" + (int)(Math.Log10((double)total_nr) + 0.99999);
 
                 var csv = new CsvReader(reader);
@@ -573,7 +573,7 @@ namespace VitaDB
             // You *REALLY* want to use a transaction on this one
             using (var transaction = db.Database.BeginTransaction())
             {
-                var lines = File.ReadLines(file_path);
+                var lines = File.ReadAllLines(file_path);
                 string format = "D" + (int)(Math.Log10((double)lines.Count()) + 0.99999);
                 int line_nr = 0;
                 foreach (var line in lines)

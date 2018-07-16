@@ -178,7 +178,7 @@ namespace VitaDB
                 }
             }
             Console.WriteLine($"Creating database '{Settings.Instance.database_name}' from '{sql_file}'...");
-            var lines = File.ReadLines(sql_file);
+            var lines = File.ReadAllLines(sql_file);
             using (var db = new Database(true))
             using (var connection = db.Database.GetDbConnection())
             {
