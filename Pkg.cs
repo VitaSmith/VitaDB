@@ -77,7 +77,8 @@ namespace VitaDB
         {
             "http://zeus.dl.playstation.net/",
             "http://ares.dl.playstation.net/",
-            "http://gs.ww.np.dl.playstation.net/"
+            "http://gs.ww.np.dl.playstation.net/",
+            "http://psm-runtime.np.dl.playstation.net/"
         };
 
         /// <summary>
