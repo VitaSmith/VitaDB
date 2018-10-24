@@ -302,12 +302,19 @@ namespace VitaDB
                 tmp_file = Path.GetTempFileName();
                 try
                 {
+                    // Google may throttle downloads so ensure we leave ample timeout
                     using (var client = new WebClient())
-                        client.DownloadFile(uri, tmp_file);
+                    {
+                        client.DownloadFileTaskAsync(uri, tmp_file).Wait(TimeSpan.FromSeconds(600));
+                    }
                 }
                 catch (Exception e)
                 {
-                    Console.Error.WriteLine($"[ERROR] {e.Message}");
+                    while (e != null)
+                    {
+                        Console.Error.WriteLine($"[ERROR] {e.Message}");
+                        e = e.InnerException;
+                    }
                     return;
                 }
                 uri = tmp_file;
