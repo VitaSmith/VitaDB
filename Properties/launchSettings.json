@@ -3,7 +3,7 @@
     "VitaDB": {
       "commandName": "Project",
       "commandLineArgs": "--wait-for-key",
-      "workingDirectory": "C:\\Projects\\VitaDB"
+      "workingDirectory": "$(SolutionDir)"
     }
   }
 }
