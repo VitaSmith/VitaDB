@@ -1,2 +1,2 @@
-dotnet bin\Debug\netcoreapp2.1\VitaDB.dll -m
-dotnet bin\Debug\netcoreapp2.1\VitaDB.dll -d
+dotnet bin\Release\net5.0\VitaDB.dll -m
+dotnet bin\Release\net5.0\VitaDB.dll -d
